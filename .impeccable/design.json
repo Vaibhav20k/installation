@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T00:00:00+05:30",
+  "title": "Design System: Magppie Installations",
+  "extensions": {
+    "colorMeta": {
+      "signal": { "role": "primary", "displayName": "Signal Red", "canonical": "#c8102e", "dark": "#ff5466" },
+      "ground": { "role": "neutral", "displayName": "Pale Steel Ground", "canonical": "#e8ebeb", "dark": "#0e1012" },
+      "plate": { "role": "neutral", "displayName": "Satin Plate", "canonical": "#fbfbfa", "dark": "#17191c", "tonalRamp": ["#fbfbfa", "#f1f3f3", "#e3e7e8"] },
+      "ink": { "role": "neutral", "displayName": "Graphite Ink", "canonical": "#16181b", "dark": "#eceeef", "tonalRamp": ["#16181b", "#474d55", "#646a72"] },
+      "rule": { "role": "neutral", "displayName": "Brushed Hairline", "canonical": "#d4d8db", "dark": "#2b2f34" },
+      "chrome": { "role": "neutral", "displayName": "Graphite Chrome", "canonical": "#16181b", "dark": "#07080a" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page titles." },
+      "title": { "displayName": "Plate title", "purpose": "The record name on a plate." },
+      "label": { "displayName": "Stamp label", "purpose": "Stamps and stacked-table labels." },
+      "figure": { "displayName": "Figure", "purpose": "Spec-table values, tabular." }
+    },
+    "shadows": [
+      { "name": "plate", "value": "0 1px 2px rgb(22 24 27 / 0.06), 0 8px 24px -12px rgb(22 24 27 / 0.18)", "purpose": "Every plate, card and board." },
+      { "name": "lift", "value": "0 2px 4px rgb(22 24 27 / 0.08), 0 18px 40px -16px rgb(22 24 27 / 0.28)", "purpose": "Sheets and dialogs." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrances, meters, stamp press." },
+      { "name": "ease-press", "value": "cubic-bezier(0.2, 0, 0, 1)", "purpose": "Press feedback, 110-120ms." },
+      { "name": "stamp", "value": "520ms ease-out, scale 1.9 to 1 at -3deg", "purpose": "The plate's state printed on." }
+    ],
+    "breakpoints": [
+      { "name": "stack-tables", "value": "max-width 759px" },
+      { "name": "two-column", "value": "760px" },
+      { "name": "rail", "value": "960px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one committing action in a plate.",
+      "html": "<button class=\"ds-btn-primary\">Record 2 unit</button>",
+      "css": ".ds-btn-primary { font: 600 14px/1 var(--font-ui, Archivo, sans-serif); background: var(--ink, #16181b); color: var(--plate, #fbfbfa); border: 1px solid var(--ink, #16181b); border-radius: 4px; padding: 0 16px; min-height: 46px; cursor: pointer; transition: transform 110ms cubic-bezier(0.2,0,0,1); } .ds-btn-primary:active { transform: scale(0.97); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ink, #16181b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Stamp",
+      "kind": "chip",
+      "refersTo": "stamp",
+      "description": "State printed onto a plate; hero variant rotated.",
+      "html": "<span class=\"ds-stamp\">In progress</span> <span class=\"ds-stamp ds-stamp-hero\">In progress</span>",
+      "css": ".ds-stamp { display: inline-flex; padding: 3px 7px 2px; border-radius: 3px; font: 700 10.5px/1.2 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; border: 1.5px solid currentColor; color: var(--ink, #16181b); } .ds-stamp-hero { font-size: 13px; padding: 5px 10px 4px; border-width: 2px; transform: rotate(-3deg); }"
+    },
+    {
+      "name": "Callout row",
+      "kind": "custom",
+      "refersTo": "callout-number",
+      "description": "Numbered next action on a plate.",
+      "html": "<a class=\"ds-callout\" href=\"#\"><span class=\"ds-callout-n\">1</span><span><b>Record progress</b><small>4 tasks on today's plate</small></span></a>",
+      "css": ".ds-callout { display: grid; grid-template-columns: 30px 1fr; gap: 14px; align-items: center; padding: 14px 4px; min-height: 60px; color: var(--ink, #16181b); text-decoration: none; border-bottom: 1px solid var(--rule, #d4d8db); } .ds-callout small { display: block; color: var(--ink-2, #474d55); font-size: 13px; } .ds-callout-n { width: 28px; height: 28px; border-radius: 50%; background: var(--signal, #c8102e); color: #fff; display: grid; place-items: center; font: 700 13px/1 'JetBrains Mono', monospace; } .ds-callout:active { background: var(--plate-2, #f1f3f3); }"
+    },
+    {
+      "name": "Plate",
+      "kind": "card",
+      "refersTo": "plate",
+      "description": "A record as a catalogue plate.",
+      "html": "<section class=\"ds-plate\"><div class=\"ds-plate-head\"><code>VIS-005</code><span>IN PROGRESS</span></div><h2>Mehta - Gurugram apartment</h2></section>",
+      "css": ".ds-plate { background: var(--plate, #fbfbfa); border-radius: 4px; padding: 16px; box-shadow: 0 1px 2px rgb(22 24 27 / 0.06), 0 8px 24px -12px rgb(22 24 27 / 0.18); } .ds-plate-head { display: flex; justify-content: space-between; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--rule, #d4d8db); font: 600 12px/1 'JetBrains Mono', monospace; color: var(--ink-2, #474d55); } .ds-plate h2 { margin: 0; font-size: 22px; font-weight: 760; letter-spacing: -0.02em; }"
+    },
+    {
+      "name": "Text input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "16px on phones to avoid zoom.",
+      "html": "<input class=\"ds-input\" placeholder=\"Quantity\" />",
+      "css": ".ds-input { font: 400 16px/1.4 Archivo, sans-serif; color: var(--ink, #16181b); background: var(--plate, #fbfbfa); border: 1px solid var(--rule-strong, #a8aeb4); border-radius: 4px; padding: 10px 12px; min-height: 46px; } .ds-input:focus { outline: none; border-color: var(--ink, #16181b); box-shadow: 0 0 0 3px rgb(22 24 27 / 0.14); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Fittings Catalogue",
+    "overview": "Every record is a part on a satin plate: mono part code, condensed title, state printed as a stamp. Pale steel ground, graphite ink, brushed hairlines, one signal red for next actions and blocking states. Phone first, with a graphite bottom bar that becomes an index rail on desktop.",
+    "keyCharacteristics": ["Part codes in mono", "Stamps, never dots", "Numbered red callouts", "Hardware steppers", "One 4px corner"],
+    "rules": [
+      { "name": "The One Red Rule", "body": "Signal red only for next actions, counts, the current tab and blocking states.", "section": "colors" },
+      { "name": "The Part Code Rule", "body": "Identifiers, quantities, dates and money in tabular mono; names never in mono.", "section": "typography" },
+      { "name": "The No Nested Plate Rule", "body": "A plate never holds a bordered box; records inside are hairline rows.", "section": "elevation" }
+    ],
+    "dos": ["Do give every record its part code.", "Do keep at most three numbered callouts.", "Do gate hover behind (hover: hover) and (pointer: fine)."],
+    "donts": ["Don't use red decoratively.", "Don't show state as a dot.", "Don't use glyphs in place of icons or em-dashes in copy."]
+  }
+}

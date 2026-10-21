@@ -1,0 +1,50 @@
+# Test evidence
+
+All results below were produced on 21 Oct 2026 on Windows 11, Node 24.18, Next.js 15.5.28, PGlite 0.5.11 (PostgreSQL 18.6). No result is claimed that was not run.
+
+## Automated tests
+
+```bash
+npm run check
+```
+
+Final run: `tsc --noEmit` exit 0; **Vitest 12 files, 92 tests, all passing.**
+
+| File | Tests | What it proves (master-prompt scenario numbers) |
+|---|---|---|
+| tests/unit/estimation.test.ts | 14 | Decimal maths; 5 (8 team-days = 24 person-days); 23 (8-h rate-day vs 6-h calendar); 36 (quantity kinds); 6 (assignment dates, weekend gap, 30 person-assignment dates); schedule start blockers; hotel nights |
+| tests/unit/skills.test.ts | 11 | 2 (unverified High); 3 (distinct people per simultaneous slot); 4 (preferred team, mandatory continuity); 25 (mid-work expiry, disjoint crew presence); 26 (team size 4, bounded search statement, determinism) |
+| tests/unit/time.test.ts | 6 | 11 (11 h net / 9 within / 2 outside; catch-up ineligible, no override); 12 (22:00–02:00 = 210 min, day/month split); 13 (overlaps vs adjacency, breaks) |
+| tests/unit/reconciliation.test.ts | 11 | 14, 15 (exact N/Q/E/X/cap); 16, 32 (unset fields block; both catch-up credit variants); 33 (60 + 30 partial allocation; no double minutes); 31 (cross-project, cross-month split); leave once; finalization gates |
+| tests/unit/expenses-kpi.test.ts | 15 | 18 (2 rooms × 3 nights × ₹1,500 = ₹9,000); 19 (residual paise, N/A %); 10, 24 (remaining scope, reversals); 34, 35 (FTR Not rated, 19/20 = 95%, summed cohorts); 37–40; 42 (CSV escaping) |
+| tests/integration/foundation.test.ts | 6 | Seed shape (40/3/10 roles/5 cities); 1 (customer → 2 projects, project → 2 orders); DB-level validation; append-only audit; value types |
+| tests/integration/planning.test.ts | 7 | 1 (cross-project order link rejected); out-of-scope supervisor forbidden; 24 (concurrent scope commit, one wins); 8, 9 (blocked booking, exception, idempotent booking, immutable baseline); 7 (concurrent bookings, one conflict); 27 (proposal non-blocking, hold blocks until expiry); 4, 26 |
+| tests/integration/flow.test.ts | 7 | 22 (plan → approval → clearance → readiness-gated start → progress → completion with transfer → follow-up → timesheet → reconciliation); 29; 10; 11, 20; 15, 31, 33 (concurrent finalize allocates once: 120 min); 17, 30 (amendment invalidates the final month); 18, 19 |
+| tests/integration/queries.test.ts | 5 | Operational seed via services; 21 (dashboard counts = detail rows); read scope; every read model; 37–42 (trackers, KRA Not rated, CSV) |
+| tests/integration/boundaries.test.ts | 5 | Source import preview / unit rejection / idempotent apply / approved revision unchanged / review issue; manager preview scope; 27 (travel legs, outstation occupancy blocks same-day local work); 28 (proposal moves nothing); 30 (unbooked work exception, returned entry history) |
+| tests/integration/security.test.ts | 4 | Recorder cannot accept the entry they recorded; employee cannot submit plans; revision author cannot approve via another submitter; credits need approved original and supervisor role and cannot exceed it concurrently; per-user idempotency |
+| tests/integration/perf.test.ts | 1 | Observed timings (below) |
+
+## Observed timings (perf.test.ts, demo dataset)
+
+Dataset: 40 employees, 4 visits, 9 time entries, 9 reservations. Dashboard 53 ms; planning board (28 days) 9 ms; planning sheet 21 ms; KRA review 26 ms; manpower tracker 27 ms; team suggestion 39 ms over 6,545 combinations. The dataset is small; these are not benchmarks for production volumes.
+
+## Production build and production-mode authentication
+
+- `npm run build`: compiled successfully; 18 routes.
+- Production server (`next start`, NODE_ENV=production) on port 3311: `GET /` → 307 to `/sign-in`; `/sign-in` → "Sign-in not configured"; `GET /` with a forged demo cookie → 307; `GET /api/export/kra` → 401.
+
+## Browser checks (in-app browser, dev server)
+
+- All 21 top-level routes and 45 detail pages/steps returned 200 with one `h1` and no error notices (signed in as EMP-001 and EMP-004).
+- UI workflow driven through real forms as EMP-008: add scope → estimate shows 8 team-days / 24 person-days / 192 h (provisional) → save skill requirements → find teams (earliest option, bounded search statement) → propose team → submit plan. As EMP-004: create customer, project, order, order item and component (three dependent tasks); import preview (update / new / rejected-unit rows).
+- Accessibility (DOM audit of 29 pages): every input/select/textarea labelled, no duplicate IDs, no unnamed buttons or links, one `h1` per page. Colour tokens: all text/background pairs ≥ 5.1:1 (WCAG AA).
+- Responsive: at 390 px width no page-level horizontal overflow on Dashboard, Timesheets (week and month), Projects, Expenses, Reports, People, Settings, My day; wide tables scroll inside their containers.
+
+## Limitations of the evidence
+
+- Screenshots could not be captured: the browser pane was hidden for the whole session and its screenshot calls timed out. Visual quality was checked through DOM, layout-overflow and contrast measurements, not by eye.
+- Pointer clicks also required a drawn pane, so form tests submitted through `form.requestSubmit()` and React-compatible value setters; the same handlers and server actions ran.
+- Keyboard-only operation and 200% zoom were not exercised interactively; semantic controls, visible focus styles and native dialogs with focus restoration are in place.
+- No Playwright suite exists (browsers not installed); integration tests cover services against a real PostgreSQL engine instead.
+- External PostgreSQL (`DATABASE_URL`) was not exercised; only the embedded engine was.
