@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { session } from "@/server/session";
 import { approvalQueues } from "@/server/queries/time";
 import { formatMoney, hours, when } from "@/lib/format";
@@ -30,9 +31,9 @@ export default async function ApprovalsPage() {
             <tbody>{q.plans.map((p) => {
               const v = planVisits.find((x) => x.plan_id === p.plan_id);
               return (
-                <tr key={p.plan_id}><td data-label="Plan">{p.plan}</td><td data-label="Project"><a href={`/projects/${p.project_id}`}>{p.project}</a></td><td data-label="Revision">r{p.revision_no}</td><td data-label="Submitted">{p.submitted_by}<div className="small muted">{when(p.submitted_at)}</div></td>
+                <tr key={p.plan_id}><td data-label="Plan">{p.plan}</td><td data-label="Project"><Link href={`/projects/${p.project_id}`}>{p.project}</Link></td><td data-label="Revision">r{p.revision_no}</td><td data-label="Submitted">{p.submitted_by}<div className="small muted">{when(p.submitted_at)}</div></td>
                   <td data-label="Change reason" className="small">{p.change_reason ?? "None given"}</td>
-                  <td data-label="Review">{p.submitted_by_id === actor.id ? <span className="small muted">Your submission; another manager reviews it</span> : isManager ? <a className="button" href={`/visits/${v?.id}?step=review`}>Open plan, compare revisions</a> : <span className="small muted">Manager review</span>}</td></tr>
+                  <td data-label="Review">{p.submitted_by_id === actor.id ? <span className="small muted">Your submission; another manager reviews it</span> : isManager ? <Link className="button" href={`/visits/${v?.id}?step=review`}>Open plan, compare revisions</Link> : <span className="small muted">Manager review</span>}</td></tr>
               );
             })}</tbody>
           </table></div>
@@ -46,7 +47,7 @@ export default async function ApprovalsPage() {
             <thead><tr><th>Employee</th><th>Activity</th><th>From</th><th>To</th><th className="num">Gross</th><th>Notes</th><th>Decision</th></tr></thead>
             <tbody>{q.time.map((t) => (
               <tr key={t.id}>
-                <td data-label="Employee"><a href={`/timesheets?employee=${t.employee_id}`}>{t.employee}</a></td><td data-label="Activity">{t.activity}<div className="small muted">{t.project ?? ""}</div></td>
+                <td data-label="Employee"><Link href={`/timesheets?employee=${t.employee_id}`}>{t.employee}</Link></td><td data-label="Activity">{t.activity}<div className="small muted">{t.project ?? ""}</div></td>
                 <td data-label="From">{when(t.start)}</td><td data-label="To">{when(t.end)}</td><td data-label="Gross" className="num">{hours((t.end - t.start) / 60000)}</td>
                 <td data-label="Notes" className="small">{t.is_exception && <Badge state="pending" label="No booking: exception" />} {t.exception_note ?? t.note ?? ""}</td>
                 <td data-label="Decision">{t.employee_id === actor.id ? <span className="small muted">Your own entry</span> : (

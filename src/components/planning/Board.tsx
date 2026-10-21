@@ -1,3 +1,4 @@
+import Link from "next/link";
 /** Timeline board: employee rows, day columns; work, holds, proposals and leave are visually and textually distinct. */
 import { addDays, weekday } from "@/lib/dates";
 import { when } from "@/lib/format";
@@ -30,14 +31,14 @@ export function Board({ from, days, start, end, rows }: { from: string; days: nu
           ))}
           {rows.map((r) => (
             <div key={r.id} className="board-row">
-              <div className="board-cell board-name"><a href={`/people/${r.id}`}>{r.name}</a><small>{r.business_id} · {r.job_role.replace(/_/g, " ")}</small></div>
+              <div className="board-cell board-name"><Link href={`/people/${r.id}`}>{r.name}</Link><small>{r.business_id} · {r.job_role.replace(/_/g, " ")}</small></div>
               <div className="board-cell" style={{ gridColumn: `span ${days}`, position: "relative", backgroundImage: "linear-gradient(90deg, transparent calc(100% - 1px), var(--rule) 0)", backgroundSize: `${100 / days}% 100%` }}>
                 {r.segments.map((s, i) => {
                   const left = pct(s.start), right = pct(s.end);
                   const text = `${KIND_TEXT[s.kind]}: ${s.label}, ${when(s.start)} to ${when(s.end)}${s.note ? ` (${s.note})` : ""}`;
                   const style = { left: `${left}%`, width: `${Math.max(right - left, 1.5)}%`, top: s.kind === "leave" ? 5 : undefined };
                   return s.visitId
-                    ? <a key={i} className="seg" data-kind={s.kind} href={`/visits/${s.visitId}`} style={style} title={text} aria-label={text}>{s.label}</a>
+                    ? <Link key={i} className="seg" data-kind={s.kind} href={`/visits/${s.visitId}`} style={style} title={text} aria-label={text}>{s.label}</Link>
                     : <span key={i} className="seg" data-kind={s.kind} style={style} title={text} role="img" aria-label={text}>{s.label}</span>;
                 })}
               </div>

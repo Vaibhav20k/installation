@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CaretRight, MagnifyingGlass, Users } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { installationsBoard, type InstallRow } from "@/server/queries/installations";
@@ -33,7 +34,7 @@ export default async function InstallationsPage({ searchParams }: { searchParams
         <MagnifyingGlass size={18} aria-hidden />
         <label htmlFor="iq" className="sr-only">Customer, project or order</label>
         <input id="iq" name="q" defaultValue={sp.q ?? ""} placeholder="Customer ID, name, project or order" autoCapitalize="none" autoCorrect="off" enterKeyHint="search" />
-        {q && <a href="/installations" className="small">Clear</a>}
+        {q && <Link href="/installations" className="small">Clear</Link>}
       </form>
 
       {!q && (
@@ -69,7 +70,7 @@ function SiteCard({ r, today }: { r: InstallRow; today: string }) {
   const dayNo = r.work_days ? r.done_days + r.delayed_days + (r.today_kind === "work" ? 1 : 0) : null;
   const lead = r.team[0];
   return (
-    <a className="plate site-card" href={`/installations/${r.visit_id}`}>
+    <Link className="plate site-card" href={`/installations/${r.visit_id}`}>
       <div className="plate-head">
         <span className="code-tag"><span className="nw">{r.customer}</span> · <span className="nw">{r.project}</span> · <span className="nw">{r.visit}</span></span>
         {r.behind_days > 0 ? <Badge state="fail" tone="bad" label={`Behind ${r.behind_days} day${r.behind_days > 1 ? "s" : ""}`} /> : <Badge state={r.exec_status} />}
@@ -87,6 +88,6 @@ function SiteCard({ r, today }: { r: InstallRow; today: string }) {
         <span className="small muted">{dayNo && r.work_days ? `day ${Math.min(dayNo, r.work_days)} of ${r.work_days}` : r.scoped ? "by quantity" : ""}</span>
         <CaretRight size={18} className="callout-go" aria-hidden />
       </div>
-    </a>
+    </Link>
   );
 }

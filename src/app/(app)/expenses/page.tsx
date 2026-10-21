@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { session } from "@/server/session";
 import { expenseSummary } from "@/server/queries/dashboard";
 import { listExpenses } from "@/server/queries/expenses";
@@ -29,7 +30,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         <div className="table-wrap"><table>
           <thead><tr><th>Project</th><th className="num">Latest estimates</th><th className="num">Approved budget</th><th className="num">Approved actual</th><th className="num">Awaiting approval</th><th className="num">vs estimate</th><th className="num">vs budget</th><th className="num">Remaining budget</th></tr></thead>
           <tbody>{summary.map((s) => (
-            <tr key={s.id}><td><a href={`/expenses?project=${s.id}`}>{s.business_id}</a></td><td className="num">{formatMoney(s.estimate)}</td><td className="num">{formatMoney(s.budget)}</td><td className="num">{formatMoney(s.actual)}</td>
+            <tr key={s.id}><td><Link href={`/expenses?project=${s.id}`}>{s.business_id}</Link></td><td className="num">{formatMoney(s.estimate)}</td><td className="num">{formatMoney(s.budget)}</td><td className="num">{formatMoney(s.actual)}</td>
               <td className="num">{formatMoney(s.submitted)}</td><td className="num">{formatMoney(s.estimateVarianceMinor)}</td>
               <td className="num">{s.budgetVarianceMinor === null ? "N/A" : `${formatMoney(s.budgetVarianceMinor)} (${s.budgetVariancePercent === null ? "N/A" : `${s.budgetVariancePercent}%`})`}</td><td className="num">{formatMoney(s.remainingBudgetMinor)}</td></tr>
           ))}</tbody>

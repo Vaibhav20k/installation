@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 /**
  * Navigation in two forms from one list: a graphite index rail on desktop and a thumb-reach
  * bottom bar on phones, with the rest of the catalogue in a "More" sheet. Counts show each
@@ -42,11 +43,11 @@ export function RailNav({ role, counts }: { role: string; counts: Record<string,
   return (
     <nav aria-label="Sections">
       {visible.map((i) => (
-        <a key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
+        <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
           <i.icon size={19} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
           <span>{i.label}</span>
           {(counts[i.href] ?? 0) > 0 ? <span className="count">{counts[i.href]}</span> : <span />}
-        </a>
+        </Link>
       ))}
     </nav>
   );
@@ -64,11 +65,11 @@ export function TabBar({ role, counts, identity }: { role: string; counts: Recor
     <>
       <nav aria-label="Primary" className="tabbar">
         {primary.map((i) => (
-          <a key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
+          <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
             <i.icon size={23} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
             <span>{i.short}</span>
             {count(i.href) > 0 && <span className="count" aria-label={`${count(i.href)} waiting`}>{count(i.href)}</span>}
-          </a>
+          </Link>
         ))}
         <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" aria-expanded={more}>
           <DotsNine size={23} weight={moreActive ? "fill" : "regular"} aria-hidden />
@@ -82,11 +83,11 @@ export function TabBar({ role, counts, identity }: { role: string; counts: Recor
             <div className="grabber" aria-hidden />
             <nav aria-label="More sections">
               {rest.map((i, n) => (
-                <a key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined} autoFocus={n === 0}>
+                <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined} autoFocus={n === 0}>
                   <i.icon size={22} aria-hidden />
                   {i.label}
                   {count(i.href) > 0 && <span className="count">{count(i.href)}</span>}
-                </a>
+                </Link>
               ))}
             </nav>
             <div className="identity">{identity}</div>

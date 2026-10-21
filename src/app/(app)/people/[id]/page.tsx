@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { session } from "@/server/session";
 import { employeeProfile, skillsCatalog } from "@/server/queries/people";
 import { AppError } from "@/server/errors";
@@ -24,7 +25,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   return (
     <>
       <PageHeader title={`${e.name} (${e.business_id})`} subtitle={<>{e.job_role.replace(/_/g, " ")} · permission {e.permission_role} · {e.base_city} · reports to {e.manager ?? "None"} {e.is_demo && <DemoTag />} {!e.active && <Badge state="cancelled" label="Inactive" />}</>}
-        actions={<a className="button" href={`/timesheets?employee=${id}`}>Timesheet</a>} />
+        actions={<Link className="button" href={`/timesheets?employee=${id}`}>Timesheet</Link>} />
       <div className="grid cols-2">
         <section className="card stack" aria-labelledby="h-sk">
           <h2 id="h-sk">Skill card</h2>
@@ -63,7 +64,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         <div className="table-wrap"><table>
           <thead><tr><th>Visit</th><th>Project</th><th>Role</th><th>Reservation</th><th>From</th><th>To</th></tr></thead>
           <tbody>{d.assignments.map((a, i) => (
-            <tr key={i}><td><a href={`/visits/${a.visit_id}`}>{a.visit}</a></td><td>{a.project}</td><td>{a.role.replace(/_/g, " ")}</td><td><Badge state={a.state} />{a.hold_expires_at && <div className="small muted">hold expires {when(a.hold_expires_at)}</div>}</td><td>{when(a.start)}</td><td>{when(a.end)}</td></tr>
+            <tr key={i}><td><Link href={`/visits/${a.visit_id}`}>{a.visit}</Link></td><td>{a.project}</td><td>{a.role.replace(/_/g, " ")}</td><td><Badge state={a.state} />{a.hold_expires_at && <div className="small muted">hold expires {when(a.hold_expires_at)}</div>}</td><td>{when(a.start)}</td><td>{when(a.end)}</td></tr>
           ))}{d.assignments.length === 0 && <tr><td colSpan={6} className="muted">No assignments.</td></tr>}</tbody>
         </table></div>
       </section>

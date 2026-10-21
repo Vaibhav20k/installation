@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { session } from "@/server/session";
 import { visitDetail } from "@/server/queries/planning";
@@ -72,7 +73,7 @@ export default async function VisitPage({ params, searchParams }: { params: Prom
         actions={<a className="button" href={`/api/plan-export/${id}`}>Client plan (CSV)</a>}
       />
       <nav aria-label="Plan wizard steps"><ol className="steps">
-        {STEPS.map((s) => <li key={s.id}><a href={`?step=${s.id}`} aria-current={s.id === step ? "step" : undefined}>{s.label}</a></li>)}
+        {STEPS.map((s) => <li key={s.id}><Link href={`?step=${s.id}`} aria-current={s.id === step ? "step" : undefined}>{s.label}</Link></li>)}
       </ol></nav>
       {latest.approval_state === "submitted" && <Notice tone="info">Revision {latest.revision_no} is awaiting review. Editing resumes after the decision (a returned plan becomes editable through a new draft revision).</Notice>}
       {latest.approval_state === "approved" && !started && step !== "review" && step !== "team" && step !== "clearance" && <Notice tone="info">Revision {latest.revision_no} is approved. Any change starts a new revision with a reason and needs reapproval; the approved baseline stays unchanged.</Notice>}

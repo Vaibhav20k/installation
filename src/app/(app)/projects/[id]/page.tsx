@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { session } from "@/server/session";
 import { projectDetail } from "@/server/queries/projects";
 import { expenseSummary } from "@/server/queries/dashboard";
@@ -31,7 +32,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader title={`${p.business_id} · ${p.name}`} subtitle={<>{p.customer} ({p.customer_bid}) · {p.site_address}, {p.city} · {p.timezone} {p.is_demo && <DemoTag />}</>}
-        actions={actor.role !== "employee" ? <a className="button primary" href={`/planning/new?project=${id}`}>Plan a visit</a> : undefined} />
+        actions={actor.role !== "employee" ? <Link className="button primary" href={`/planning/new?project=${id}`}>Plan a visit</Link> : undefined} />
       <section className="card" aria-label="Project summary">
         <dl className="facts">
           <dt>Manager</dt><dd>{p.manager ?? "None"}</dd>
@@ -69,7 +70,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <div className="table-wrap"><table>
           <thead><tr><th>Visit</th><th>Type</th><th>Plan revision</th><th>Execution</th><th>Dates</th><th className="num">Staff</th><th>Repeat reason</th></tr></thead>
           <tbody>{d.visits.map((v) => (
-            <tr key={v.id}><td><a href={`/visits/${v.id}`}>{v.business_id}</a></td><td>{v.visit_type.replace("_", "-")}</td><td>{v.plan_bid} r{v.revision_no} <Badge state={v.approval_state} /></td>
+            <tr key={v.id}><td><Link href={`/visits/${v.id}`}>{v.business_id}</Link></td><td>{v.visit_type.replace("_", "-")}</td><td>{v.plan_bid} r{v.revision_no} <Badge state={v.approval_state} /></td>
               <td><Badge state={v.exec_status} /></td><td>{v.planned_start ?? "None"} → {v.planned_end ?? "None"}</td><td className="num">{v.staff}/{v.team_size}</td><td>{v.repeat_reason?.replace(/_/g, " ") ?? "None"}</td></tr>
           ))}</tbody>
         </table></div>
@@ -78,7 +79,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       {tab === "team" && (d.team.length === 0 ? <Empty>No staff assigned.</Empty> : (
         <div className="table-wrap"><table>
           <thead><tr><th>Visit</th><th>Employee</th><th>Role</th><th>Reservation</th><th>From</th><th>To</th></tr></thead>
-          <tbody>{d.team.map((t, i) => <tr key={i}><td>{t.visit}</td><td><a href={`/people/${t.employee_id}`}>{t.employee}</a> <span className="muted small">{t.business_id}</span></td><td>{t.role.replace(/_/g, " ")}</td><td><Badge state={t.state} /></td><td>{when(t.start, p.timezone)}</td><td>{when(t.end, p.timezone)}</td></tr>)}</tbody>
+          <tbody>{d.team.map((t, i) => <tr key={i}><td>{t.visit}</td><td><Link href={`/people/${t.employee_id}`}>{t.employee}</Link> <span className="muted small">{t.business_id}</span></td><td>{t.role.replace(/_/g, " ")}</td><td><Badge state={t.state} /></td><td>{when(t.start, p.timezone)}</td><td>{when(t.end, p.timezone)}</td></tr>)}</tbody>
         </table></div>
       ))}
 
@@ -96,7 +97,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <dt>Latest estimates</dt><dd>{formatMoney(e.estimate)}</dd><dt>Approved budget</dt><dd>{formatMoney(e.budget)}</dd>
             <dt>Approved actual</dt><dd>{formatMoney(e.actual)}</dd><dt>Submitted, awaiting approval</dt><dd>{formatMoney(e.submitted)}</dd>
             <dt>Variance vs budget</dt><dd>{e.budgetVarianceMinor === null ? "N/A (no approved budget)" : `${formatMoney(e.budgetVarianceMinor)} (${e.budgetVariancePercent ?? "N/A"}%)`}</dd>
-          </dl><p><a href={`/expenses?project=${id}`}>Open expenses for this project</a></p></section>
+          </dl><p><Link href={`/expenses?project=${id}`}>Open expenses for this project</Link></p></section>
         ) : null;
       })()}
 

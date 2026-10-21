@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { session } from "@/server/session";
 import { listEmployees, skillsCatalog } from "@/server/queries/people";
 import { LEVEL } from "@/lib/format";
@@ -30,7 +31,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
           <thead><tr><th className="pin">Employee</th><th>Job role</th><th>Permission</th><th>Base</th><th>Reports to</th><th>Skill card</th></tr></thead>
           <tbody>{rows.map((e) => (
             <tr key={e.id}>
-              <th scope="row" className="pin" style={{ fontWeight: 400 }}><a href={`/people/${e.id}`}>{e.name}</a><div className="small muted">{e.business_id}{!e.active && " · inactive"}</div></th>
+              <th scope="row" className="pin" style={{ fontWeight: 400 }}><Link href={`/people/${e.id}`}>{e.name}</Link><div className="small muted">{e.business_id}{!e.active && " · inactive"}</div></th>
               <td>{e.job_role.replace(/_/g, " ")}</td>
               <td>{e.permission_role}{e.capabilities.length > 0 && <div className="small muted">{e.capabilities.map((c) => c.replace(/_/g, " ")).join(", ")}</div>}</td>
               <td>{e.base_city}</td><td>{e.manager ?? "None"}</td>

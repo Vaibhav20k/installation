@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { bookVisit, holdCapacity, releaseReservation, setVisitStaffing, suggestTeams } from "@/app/actions";
 import { useAction } from "@/components/ui/useAction";
@@ -45,7 +46,7 @@ export function TeamStep({ visitId, staffing, coverage, approval, execStatus, ga
             <thead><tr><th>Employee</th><th>Role</th><th>Reservation</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>{staffing.map((m) => (
               <tr key={m.id}>
-                <td><a href={`/people/${m.employee_id}`}>{m.employee}</a> <span className="muted small">{m.business_id}</span></td><td>{m.role.replace(/_/g, " ")}</td>
+                <td><Link href={`/people/${m.employee_id}`}>{m.employee}</Link> <span className="muted small">{m.business_id}</span></td><td>{m.role.replace(/_/g, " ")}</td>
                 <td><Badge state={m.state} />{m.hold_expires_at && <div className="small muted">expires {when(m.hold_expires_at)}</div>}</td>
                 <td>{role !== "employee" && role !== "supervisor" && <ActionButton action={releaseReservation} input={{ reservationId: m.id, reason: "Released from team step" }} label="Release" tone="danger" confirm="Release this employee's reservation for this visit? Recorded actual time is not affected." />}</td>
               </tr>

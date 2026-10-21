@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { planningBoard, planningSheet } from "@/server/queries/planning";
@@ -30,7 +31,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader title="Planning" subtitle="Employee timeline and the management planning sheet share the same reservation records."
-        actions={actor.role !== "employee" ? <a className="button primary" href="/planning/new">New plan</a> : undefined} />
+        actions={actor.role !== "employee" ? <Link className="button primary" href="/planning/new">New plan</Link> : undefined} />
       <Tabs current={view} items={[{ id: "board", label: "Timeline", href: qs({ view: "board" }) }, { id: "sheet", label: "Planning sheet", href: qs({ view: "sheet" }) }]} />
       {view === "board" ? await renderBoard() : await renderSheet()}
     </>
@@ -49,9 +50,9 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
           <div className="field"><label htmlFor="b-project">Project</label><select id="b-project" name="project" defaultValue={sp.project ?? ""}><option value="">All</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.business_id}</option>)}</select></div>
           <button type="submit" style={{ alignSelf: "flex-end" }}>Apply</button>
           <div className="row" style={{ alignSelf: "flex-end" }}>
-            <a className="button" href={qs({ from: addDays(from, -span) })}><CaretLeft size={16} aria-hidden /> Earlier</a>
-            <a className="button" href={qs({ from: monday })}>This week</a>
-            <a className="button" href={qs({ from: addDays(from, span) })}>Later <CaretRight size={16} aria-hidden /></a>
+            <Link className="button" href={qs({ from: addDays(from, -span) })}><CaretLeft size={16} aria-hidden /> Earlier</Link>
+            <Link className="button" href={qs({ from: monday })}>This week</Link>
+            <Link className="button" href={qs({ from: addDays(from, span) })}>Later <CaretRight size={16} aria-hidden /></Link>
           </div>
         </form>
         <Board from={board.from} days={board.days} start={board.start} end={board.end} rows={board.rows} />

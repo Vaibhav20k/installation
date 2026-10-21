@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight, CaretRight, Plus } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { dashboard } from "@/server/queries/dashboard";
@@ -52,11 +53,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           {callouts.length === 0 ? <p className="muted" style={{ margin: 0 }}>Nothing is waiting on you. Decisions, conflicts and clearance blockers appear here first.</p> : (
             <ol className="callouts">
               {callouts.map((c, i) => (
-                <li key={c.href}><a href={c.href}>
+                <li key={c.href}><Link href={c.href}>
                   <span className="callout-n">{i + 1}</span>
                   <span><span className="callout-title">{c.title}</span><span className="callout-meta">{c.meta}</span></span>
                   <CaretRight size={18} className="callout-go" aria-hidden />
-                </a></li>
+                </Link></li>
               ))}
             </ol>
           )}
@@ -71,15 +72,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <h2 id="h-next" className="plate-title">{next.site}, {next.visitType.replace("_", "-")} visit</h2>
             <p className="plate-sub">{next.plannedStart} to {next.plannedEnd} · team {next.staffed}/{next.teamSize}</p>
             <ol className="callouts" style={{ marginTop: 8 }}>
-              <li><a href={`/visits/${next.visitId}`}>
+              <li><Link href={`/visits/${next.visitId}`}>
                 <span className="callout-n quiet"><ArrowRight size={14} weight="bold" aria-hidden /></span>
                 <span><span className="callout-title">{next.nextAction}</span><span className="callout-meta">{next.owner ? `Owner ${next.owner}` : "No owner yet"}</span></span>
                 <CaretRight size={18} className="callout-go" aria-hidden />
-              </a></li>
+              </Link></li>
             </ol>
           </section>
         ) : (
-          <section className="plate"><h2>Next visit</h2><p className="muted" style={{ margin: 0 }}>No visit starts in the next 14 days. <a href="/planning/new">Plan one</a>.</p></section>
+          <section className="plate"><h2>Next visit</h2><p className="muted" style={{ margin: 0 }}>No visit starts in the next 14 days. <Link href="/planning/new">Plan one</Link>.</p></section>
         )}
       </div>
 
@@ -88,11 +89,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <ul className="spec">
           {specs.map((m) => (
             <li key={m.id}>
-              <a className="spec-row" href={m.href}>
+              <Link className="spec-row" href={m.href}>
                 <span className="spec-label">{m.label.replace(` (${month})`, "")}</span>
                 <span className="spec-value" data-tone={m.tone}>{m.value}</span>
                 <CaretRight size={16} className="callout-go" aria-hidden />
-              </a>
+              </Link>
               <details><summary><Plus size={12} weight="bold" className="disclose" aria-hidden /> How it is counted</summary>{m.definition}</details>
             </li>
           ))}
@@ -100,14 +101,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section className="plate" aria-labelledby="h-exp">
-        <div className="plate-head"><h2 id="h-exp" style={{ margin: 0 }}>Spend against estimate</h2><a className="code-tag" href="/expenses">All expenses</a></div>
+        <div className="plate-head"><h2 id="h-exp" style={{ margin: 0 }}>Spend against estimate</h2><Link className="code-tag" href="/expenses">All expenses</Link></div>
         <div className="table-wrap">
           <table>
             <thead><tr><th className="pin">Project</th><th className="num">Estimate</th><th className="num">Budget</th><th className="num">Actual</th><th className="num">Variance</th></tr></thead>
             <tbody>
               {d.expenses.map((e) => (
                 <tr key={e.id}>
-                  <th scope="row" className="pin" style={{ fontWeight: 600 }}><a href={`/expenses?project=${e.id}`}>{e.business_id}</a></th>
+                  <th scope="row" className="pin" style={{ fontWeight: 600 }}><Link href={`/expenses?project=${e.id}`}>{e.business_id}</Link></th>
                   <td className="num">{formatMoney(e.estimate)}</td>
                   <td className="num">{formatMoney(e.budget)}</td>
                   <td className="num">{formatMoney(e.actual)}</td>

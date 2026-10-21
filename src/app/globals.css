@@ -527,3 +527,15 @@ details > summary.button::-webkit-details-marker { display: none; }
 .person-field select { min-height: 40px; font-size: 14px; }
 .rail .person-field select { background: transparent; color: var(--chrome-ink); border-color: rgb(255 255 255 / 0.18); }
 .rail .person-field option, .rail .person-field optgroup { color: var(--ink); background: var(--plate); }
+
+/* Route loading: skeleton plates in the page's own shape, shown at once on navigation. */
+.skeleton { display: grid; gap: 16px; }
+.skeleton .sk { background: var(--plate); border-radius: var(--radius); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.skeleton .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--plate-3) 70%, transparent), transparent); animation: shimmer 1.2s ease-in-out infinite; }
+.skeleton .sk-title { height: 30px; width: 46%; box-shadow: none; background: var(--plate-3); }
+.skeleton .sk-line { height: 14px; width: 72%; box-shadow: none; background: var(--plate-3); }
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+/* Navigation progress: a thin signal line while the next screen is fetched. */
+.nav-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60; background: var(--signal); transform-origin: left; animation: navgrow 1.4s var(--ease-out) forwards; }
+@keyframes navgrow { from { transform: scaleX(0.05); } to { transform: scaleX(0.85); } }

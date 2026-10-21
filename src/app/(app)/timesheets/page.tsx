@@ -1,3 +1,5 @@
+import { CaretLeft, CaretRight } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
 import { session } from "@/server/session";
 import { timesheet } from "@/server/queries/time";
 import { listEmployees } from "@/server/queries/people";
@@ -50,7 +52,7 @@ export default async function TimesheetsPage({ searchParams }: { searchParams: P
       {tab === "week" ? (
         <>
           <div className="spread no-print">
-            <div className="row"><a className="button" href={`${base}&from=${addDays(from, -7)}`}>← Previous week</a><a className="button" href={`${base}&from=${monday}`}>This week</a><a className="button" href={`${base}&from=${addDays(from, 7)}`}>Next week →</a></div>
+            <div className="row"><Link className="button" href={`${base}&from=${addDays(from, -7)}`}><CaretLeft size={16} aria-hidden /> Previous week</Link><Link className="button" href={`${base}&from=${monday}`}>This week</Link><Link className="button" href={`${base}&from=${addDays(from, 7)}`}>Next week <CaretRight size={16} aria-hidden /></Link></div>
             <span className="small muted">Week of {from}</span>
           </div>
           <section className="card stack" aria-labelledby="h-entries">

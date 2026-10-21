@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 /**
  * Management planning sheet: one row per visit with expandable employee allocations.
  * Identifying columns are pinned; column visibility and saved filters are per-viewer conveniences.
@@ -87,7 +88,7 @@ export function Sheet({ rows, exportHref }: { rows: SheetRowView[]; exportHref: 
                     <div className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
                       <button type="button" className="link" aria-expanded={open.has(r.visitId)} aria-label={`${open.has(r.visitId) ? "Hide" : "Show"} allocations for ${r.visit}`}
                         onClick={() => { const n = new Set(open); if (n.has(r.visitId)) n.delete(r.visitId); else n.add(r.visitId); setOpen(n); }}>{open.has(r.visitId) ? "▾" : "▸"}</button>
-                      <a href={`/visits/${r.visitId}`}>{r.visit}</a>
+                      <Link href={`/visits/${r.visitId}`}>{r.visit}</Link>
                     </div>
                   </th>
                   <td><span className="small">{r.approval} r{r.revision}<br />{r.execStatus.replace("_", " ")}</span></td>

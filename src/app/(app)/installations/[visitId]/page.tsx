@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CaretLeft, MapPin } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { installationDetail } from "@/server/queries/installations";
@@ -29,7 +30,7 @@ export default async function InstallationDetail({ params }: { params: Promise<{
   const outside = !!(r.schedule_end && r.planned_end && r.schedule_end > r.planned_end) || !!(r.schedule_start && r.planned_start && r.schedule_start < r.planned_start);
   return (
     <>
-      <a className="back-link no-print" href="/installations"><CaretLeft size={16} aria-hidden /> All installations</a>
+      <Link className="back-link no-print" href="/installations"><CaretLeft size={16} aria-hidden /> All installations</Link>
       <section className="plate" aria-labelledby="h-site">
         <div className="plate-head">
           <span className="code-tag"><span className="nw">{r.customer}</span> · <span className="nw">{r.project}</span> · <span className="nw">{r.visit}</span></span>
@@ -54,21 +55,21 @@ export default async function InstallationDetail({ params }: { params: Promise<{
       <div className="grid cols-2">
         <section className="plate" aria-labelledby="h-team">
           <div className="plate-head"><h2 id="h-team" style={{ margin: 0 }}>Team</h2><span className="code-tag">{r.team.length} people</span></div>
-          {r.team.length === 0 ? <Empty>No one is assigned yet. <a href={`/visits/${r.visit_id}?step=team`}>Assign the team</a>.</Empty> : (
+          {r.team.length === 0 ? <Empty>No one is assigned yet. <Link href={`/visits/${r.visit_id}?step=team`}>Assign the team</Link>.</Empty> : (
             <ul className="callouts">
               {r.team.map((m) => (
-                <li key={m.id}><a href={`/people/${m.id}`}>
+                <li key={m.id}><Link href={`/people/${m.id}`}>
                   <span className="monogram" aria-hidden>{m.name.split(/\s+/).map((x) => x[0]).join("").slice(0, 2)}</span>
                   <span><span className="callout-title">{m.name} <span className="code">{m.business_id}</span></span><span className="callout-meta">{m.job_role.replace(/_/g, " ")}</span></span>
                   <Badge state={m.state} />
-                </a></li>
+                </Link></li>
               ))}
             </ul>
           )}
         </section>
 
         <section className="plate" aria-labelledby="h-work">
-          <div className="plate-head"><h2 id="h-work" style={{ margin: 0 }}>Work on site</h2><a className="code-tag" href={`/visits/${r.visit_id}`}>Open visit</a></div>
+          <div className="plate-head"><h2 id="h-work" style={{ margin: 0 }}>Work on site</h2><Link className="code-tag" href={`/visits/${r.visit_id}`}>Open visit</Link></div>
           {tasks.length === 0 ? <Empty>No scope committed to this visit yet.</Empty> : (
             <ul className="task-list">
               {tasks.map((t) => {

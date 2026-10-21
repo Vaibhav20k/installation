@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export function Notice({ tone = "info", title, children, items, live }: { tone?: "info" | "ok" | "warn" | "bad"; title?: string; children?: ReactNode; items?: string[]; live?: boolean }) {
@@ -29,7 +30,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function Tabs({ items, current }: { items: Array<{ id: string; label: string; href: string }>; current: string }) {
   return (
     <nav className="tabs" aria-label="Sections">
-      {items.map((t) => <a key={t.id} href={t.href} aria-current={t.id === current ? "page" : undefined}>{t.label}</a>)}
+      {items.map((t) => <Link key={t.id} href={t.href} aria-current={t.id === current ? "page" : undefined}>{t.label}</Link>)}
     </nav>
   );
 }

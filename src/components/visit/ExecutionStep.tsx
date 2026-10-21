@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { acceptProgress, createFollowUpVisit, freezeDailyTargets, recordAcceptance, recordDelay, recordProgress, setDailyTarget, transferOutstandingScope, transitionVisit } from "@/app/actions";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { useAction } from "@/components/ui/useAction";
@@ -165,7 +166,7 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
             <button type="submit" disabled={fu.pending}>Create visit</button>
             <ResultNotice result={fu.result} successText="Follow-up created with remaining scope." />
           </form>
-          {fu.result?.ok && <a href={`/visits/${(fu.result.data as { id: string }).id}?step=scope`}>Open the new visit</a>}
+          {fu.result?.ok && <Link href={`/visits/${(fu.result.data as { id: string }).id}?step=scope`}>Open the new visit</Link>}
         </section>
       </div>
     </div>
