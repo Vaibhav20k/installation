@@ -19,7 +19,13 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3300 and choose a demo identity. On first start the embedded database is created, migrated and seeded through the application services (takes ~15 seconds).
+For smooth day-to-day use on this machine, run the production build instead. Pages load in well under a second and nothing compiles on first visit, while demo identities stay on (`IM_LOCAL_DEMO=1`):
+
+```bash
+npm run local
+```
+
+Open http://localhost:3300 and choose a demo identity. Once inside, switch person at any time from the ID chip in the top bar (phone) or the "Switch person" list under the menu (desktop). On first start the embedded database is created, migrated and seeded through the application services (takes ~15 seconds).
 
 Useful identities: **EMP-001** (manager, accounts clearance, KRA review, policy approval), **EMP-002** (manager, Finance verification), **EMP-004** (administrator: rate approval, policy activation, target approval), **EMP-005** (site supervisor), **EMP-010** (carpenter, booked on the October visit).
 
@@ -50,6 +56,7 @@ Copy `.env.example` to `.env.local`.
 | `DATABASE_URL` | unset | Use an external PostgreSQL 14+ server instead of the embedded one. The `btree_gist` extension must be available. Migrations run automatically on start. |
 | `IM_DATA_DIR` | `%LOCALAPPDATA%\magppie-installation-management\pg` (Windows) or `~/.local/share/...` | Embedded database folder. Keep it out of OneDrive/Dropbox. |
 | `IM_DISABLE_DEMO_AUTH` | unset | Set `1` to disable the demo identity selector outside production too. |
+| `IM_LOCAL_DEMO` | unset | Set by `npm run local` only: keeps demo identities on in a local production build. Never set it on a shared server. |
 
 Business settings (team size, hold hours, search horizon, clearance policy) live in `app_setting` and are listed under Settings → General. Time policies, productivity rates and KPI targets are versioned and approved in the app (Settings).
 

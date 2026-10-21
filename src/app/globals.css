@@ -517,3 +517,13 @@ details > summary.button::-webkit-details-marker { display: none; }
 .theme-quick { min-height: 44px; width: 44px; padding: 0; color: var(--ink-2); }
 .appbar-end { display: flex; align-items: center; gap: 8px; }
 @media (min-width: 960px) { .theme-quick { display: none; } }
+
+/* Demo person switch: the app-bar chip carries an invisible native select, so the phone's own picker opens. */
+.whoami { position: relative; white-space: nowrap; }
+.person-chip-select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.whoami:has(.person-chip-select)::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); margin-left: 2px; }
+.whoami:has(.person-chip-select:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.person-field { margin-top: 10px; gap: 4px; }
+.person-field select { min-height: 40px; font-size: 14px; }
+.rail .person-field select { background: transparent; color: var(--chrome-ink); border-color: rgb(255 255 255 / 0.18); }
+.rail .person-field option, .rail .person-field optgroup { color: var(--ink); background: var(--plate); }

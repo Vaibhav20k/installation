@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { session } from "@/server/session";
 import { getSetting } from "@/server/services/context";
 import { approvalQueues } from "@/server/queries/time";
@@ -6,11 +7,13 @@ import { cookies } from "next/headers";
 import { signOut } from "../actions";
 import { ThemeQuick, ThemeSwitch } from "@/components/ThemeSwitch";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
+import { demoAuthEnabled } from "@/server/auth/actor";
+import { PersonSwitch, type Person } from "@/components/PersonSwitch";
 
 export const dynamic = "force-dynamic";
 
 function Wordmark() {
-  return <a href="/" className="wordmark" aria-label="Magppie Installations, home"><b>Magppie</b><span>Installations</span></a>;
+  return <Link href="/" className="wordmark" aria-label="Magppie Installations, home"><b>Magppie</b><span>Installations</span></Link>;
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
   const [drafts] = await db.query<{ n: number }>("select count(*)::int n from time_entry where employee_id = $1 and is_current and state in ('draft','returned')", [actor.id]);
   if (drafts?.n) counts["/timesheets"] = drafts.n;
+  const people = demoAuthEnabled() ? await db.query<Person>(
+    `select id, business_id, name, permission_role, job_role from employee where active
+     order by case permission_role when 'admin' then 0 when 'manager' then 1 when 'supervisor' then 2 else 3 end, business_id`) : [];
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   const initials = actor.name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
   const identity = (
@@ -30,7 +36,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div><strong>{actor.name}</strong> · <span className="code">{actor.businessId}</span></div>
       <div>{actor.jobRole.replace(/_/g, " ")} · {actor.role}{actor.capabilities.length ? ` · ${actor.capabilities.map((c) => c.replace(/_/g, " ")).join(", ")}` : ""}</div>
       <ThemeSwitch initial={theme} />
-      <form action={signOut} style={{ marginTop: 8 }}><button type="submit" className="link">Switch demo identity</button></form>
+      {people.length > 0 && <PersonSwitch people={people} currentId={actor.id} variant="field" />}
+      <form action={signOut} style={{ marginTop: 8 }}><button type="submit" className="link">Sign out to the people list</button></form>
     </>
   );
   return (
@@ -40,7 +47,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Wordmark />
         <span className="appbar-end">
           <ThemeQuick initial={theme} />
-          <span className="whoami" aria-label={`Signed in as ${actor.name}`}><span className="monogram" aria-hidden>{initials}</span>{actor.businessId}</span>
+          <span className="whoami" aria-label={`Signed in as ${actor.name}`}>
+            <span className="monogram" aria-hidden>{initials}</span>{actor.businessId}
+            {people.length > 0 && <PersonSwitch people={people} currentId={actor.id} variant="chip" />}
+          </span>
         </span>
       </header>
       <aside className="rail" aria-label="Main navigation">
