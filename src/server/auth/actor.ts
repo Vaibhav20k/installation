@@ -8,8 +8,10 @@ import type { Actor, Capability, PermissionRole } from "./permissions";
 
 export const DEMO_COOKIE = "im_demo_actor";
 
+/** Demo identities: on in development; in a production build only for the local preview (IM_LOCAL_DEMO=1). */
 export function demoAuthEnabled() {
-  return process.env.NODE_ENV !== "production" && process.env.IM_DISABLE_DEMO_AUTH !== "1";
+  if (process.env.IM_DISABLE_DEMO_AUTH === "1") return false;
+  return process.env.NODE_ENV !== "production" || process.env.IM_LOCAL_DEMO === "1";
 }
 
 interface EmployeeRow {

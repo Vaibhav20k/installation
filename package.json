@@ -10,6 +10,7 @@
     "dev": "node scripts/clean-next-cache.mjs && next dev --port 3300",
     "build": "node scripts/clean-next-cache.mjs && next build",
     "start": "next start --port 3300",
+    "local": "npm run build && node scripts/local.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:reset": "tsx scripts/db-reset.ts",
