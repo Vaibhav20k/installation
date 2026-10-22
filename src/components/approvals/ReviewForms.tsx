@@ -31,7 +31,7 @@ export function EligibilityReview({ request, authorizations }: {
   const { run, pending, result } = useAction(reviewEligibility);
   const decision = result?.ok ? (result.data as { status: string; explanation: string; note?: string }) : null;
   return (
-    <form className="card form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); run({ requestId: request.id, verifiedReason: reason, authorizationRef: String(f.get("auth") || "") || undefined, note: String(f.get("note") || "") || undefined }); }}>
+    <form className="card form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); run({ requestId: request.id, verifiedReason: reason, authorizationRef: String(f.get("auth") || "") || undefined, futureTaskAuthorization: String(f.get("fta") || "") || undefined, note: String(f.get("note") || "") || undefined }); }}>
       <div className="spread"><strong>{request.employee}</strong><span className="small">{request.from} → {request.to} ({hours(request.minutes)}) · {request.activity} · entry {request.entryState}</span></div>
       <p className="small">Claimed reason: “{request.claimed}”</p>
       {request.own ? <p className="small muted">This is your own request; another reviewer must decide.</p> : (
@@ -41,6 +41,7 @@ export function EligibilityReview({ request, authorizations }: {
             {([
               ["original_target_catch_up", "Finishing the original assigned target (catch-up)"],
               ["authorized_additional_scope", "Approved additional scope"],
+              ["authorized_future_task", "Authorised work brought forward from a future day"],
               ["external_delay", "Delay caused by materials, site, equipment or another function"],
               ["other_documented", "Other documented cause"],
             ] as const).map(([v, l]) => <label key={v} className="check"><input type="radio" name={`reason-${request.id}`} value={v} checked={reason === v} onChange={() => setReason(v)} /> {l}</label>)}
@@ -49,6 +50,10 @@ export function EligibilityReview({ request, authorizations }: {
             <div className="field"><label htmlFor={`au-${request.id}`}>Approval record (dated before the work)</label>
               <select id={`au-${request.id}`} name="auth" required><option value="">Choose…</option>{authorizations.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select>
               {authorizations.length === 0 && <span className="error">No additional-scope approval on this visit predates the work, so it cannot be eligible as authorized scope.</span>}</div>
+          )}
+          {reason === "authorized_future_task" && (
+            <div className="field"><label htmlFor={`fta-${request.id}`}>Who authorised bringing it forward, and when</label>
+              <input id={`fta-${request.id}`} name="fta" required minLength={5} placeholder="For example: Harish D. on 21 Oct, before the work" /></div>
           )}
           <div className="field"><label htmlFor={`no-${request.id}`}>Review note</label><input id={`no-${request.id}`} name="note" /></div>
           <button type="submit" className="primary" disabled={pending}>Record verified reason</button>

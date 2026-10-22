@@ -83,12 +83,14 @@ export function workMetrics(entries: TimeEntryInput[], schedule: Interval[]) {
 export type ExtraTimeReason =
   | "original_target_catch_up"
   | "authorized_additional_scope"
+  | "authorized_future_task"
   | "external_delay"
   | "other_documented";
 
 export const REASON_LABEL: Record<ExtraTimeReason, string> = {
   original_target_catch_up: "Finishing the original assigned target (catch-up)",
   authorized_additional_scope: "Approved additional scope",
+  authorized_future_task: "Authorised work brought forward from a future day",
   external_delay: "Delay caused by materials, site, equipment or another function",
   other_documented: "Other documented cause",
 };
@@ -127,6 +129,10 @@ export function decideEligibility(input: EligibilityInput, policy: EligibilityPo
   if (input.verifiedReason === "authorized_additional_scope") {
     if (!input.authorizationRef) return { status: "ineligible", code: "no_authorization", explanation: "Additional scope needs a dated approval reference; extra output alone is not proof." };
     return { status: "eligible", code: "authorized_scope", explanation: `Authorized additional scope (${input.authorizationRef}).` };
+  }
+  if (input.verifiedReason === "authorized_future_task") {
+    if (!input.authorizationRef) return { status: "ineligible", code: "no_authorization", explanation: "Work brought forward needs a record of who authorised it, before the work." };
+    return { status: "eligible", code: "future_task", explanation: `Authorised work brought forward from a future day (${input.authorizationRef}); no new customer order is needed. Monthly review still applies.` };
   }
   const setting = input.verifiedReason === "external_delay" ? policy.externalDelayEligibility : policy.otherDocumentedEligibility;
   if (setting === "unset") return { status: "pending_policy", code: "rule_unset", explanation: "No approved eligibility rule exists yet for this cause." };

@@ -203,14 +203,14 @@ export async function policyForMonth(q: Queryable, month: string) {
 /** Reviewer verifies the reason; the confirmed catch-up rule is applied by the domain function and cannot be overridden. */
 export async function reviewEligibility(ctx: Ctx, input: unknown) {
   const d = parse(z.object({
-    requestId: zId, verifiedReason: z.enum(["original_target_catch_up", "authorized_additional_scope", "external_delay", "other_documented"]),
-    authorizationRef: zId.optional(), note: z.string().max(500).optional(),
+    requestId: zId, verifiedReason: z.enum(["original_target_catch_up", "authorized_additional_scope", "authorized_future_task", "external_delay", "other_documented"]),
+    authorizationRef: zId.optional(), futureTaskAuthorization: z.string().min(5).max(200).optional(), note: z.string().max(500).optional(),
   }), input);
   requireRole(ctx.actor, "supervisor", "eligibility review");
   return ctx.db.tx(async (q) => {
-    const r = await one<{ employee_id: string; lo: number; hi: number; activity: string; visit_id: string | null; entry_state: string; is_current: boolean; created_by: string | null; decision: string }>(q,
-      `select o.employee_id, lower(o.span) lo, upper(o.span) hi, e.activity, e.visit_id, e.state entry_state, e.is_current, o.created_by, o.decision
-       from ot_request o join time_entry e on e.id = o.time_entry_id where o.id = $1 for update of o`, [d.requestId], "Overtime request");
+    const r = await one<{ employee_id: string; lo: number; hi: number; activity: string; visit_id: string | null; project_id: string | null; entry_state: string; is_current: boolean; created_by: string | null; decision: string; ot_at: number | null }>(q,
+      `select o.employee_id, lower(o.span) lo, upper(o.span) hi, e.activity, e.visit_id, e.project_id, e.state entry_state, e.is_current, o.created_by, o.decision, s.ot_at
+       from ot_request o join time_entry e on e.id = o.time_entry_id left join shift_instance s on s.id = e.shift_id where o.id = $1 for update of o`, [d.requestId], "Overtime request");
     forbidSelfApproval(ctx.actor, r.employee_id, "overtime request");
     if (r.created_by) forbidSelfApproval(ctx.actor, r.created_by, "overtime request you raised");
     await requireEmployeeScope(q, ctx.actor, r.employee_id);
@@ -218,14 +218,19 @@ export async function reviewEligibility(ctx: Ctx, input: unknown) {
     const cal = await employeeCalendar(q, r.employee_id);
     const span = { start: r.lo, end: r.hi };
     const sched = scheduleIntervals(cal, localDateOf(span.start - 86_400_000, cal.timezone), localDateOf(span.end + 86_400_000, cal.timezone));
-    const outside = durationMinutes(subtract([span], sched)) === durationMinutes(span);
+    // Attendance-based time: the confirmed rule makes everything from clock-in + 480 minutes the overtime period.
+    const outside = r.ot_at !== null ? span.start >= Number(r.ot_at) : durationMinutes(subtract([span], sched)) === durationMinutes(span);
     let authorizationRef: string | null = null;
     if (d.verifiedReason === "authorized_additional_scope" && d.authorizationRef) {
       // Approval must be an additional-scope record on this visit dated on or before the work; extra output is not proof.
-      const [auth] = await q.query<{ id: string }>("select id from visit_task where id = $1 and visit_id = $2 and kind = 'additional' and created_at <= $3", [d.authorizationRef, r.visit_id, iso(span.start)]);
-      if (!auth) throw validation("That authorization is not an additional-scope approval on this visit dated before the work.");
+      const [auth] = await q.query<{ id: string }>(
+        `select id from visit_task where id = $1 and visit_id = $2 and kind = 'additional' and created_at <= $3
+         union all select id from additional_work where id = $1 and status = 'approved' and decided_at <= $3 and project_id = coalesce($4, (select project_id from visit where id = $2))`,
+        [d.authorizationRef, r.visit_id, iso(span.start), r.project_id]);
+      if (!auth) throw validation("That authorization is not an additional-scope approval on this job dated before the work.");
       authorizationRef = auth.id;
     }
+    if (d.verifiedReason === "authorized_future_task") authorizationRef = d.futureTaskAuthorization ?? null;
     const month = monthOf(localDateOf(span.start, cal.timezone));
     const p = await policyForMonth(q, month);
     const policy: EligibilityPolicy = p
