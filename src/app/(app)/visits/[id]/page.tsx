@@ -13,6 +13,8 @@ import { DatesStep } from "@/components/visit/DatesStep";
 import { SkillsStep } from "@/components/visit/SkillsStep";
 import { ClearanceStep } from "@/components/visit/ClearanceStep";
 import { TeamStep } from "@/components/visit/TeamStep";
+import { SubstitutionForm } from "@/components/visit/SubstitutionForm";
+import { localDateOf as todayIn } from "@/lib/dates";
 import { ExpensesStep } from "@/components/visit/ExpensesStep";
 import { ReviewStep } from "@/components/visit/ReviewStep";
 import { ExecutionStep } from "@/components/visit/ExecutionStep";
@@ -85,6 +87,9 @@ export default async function VisitPage({ params, searchParams }: { params: Prom
       {step === "skills" && <SkillsStep visitId={id} skills={skills} requirements={d.requirements} needsReason={latest.approval_state !== "draft"} editable={editable} />}
       {step === "clearance" && <ClearanceStep visitId={id} clearances={d.clearances} exceptions={d.exceptions} readiness={d.readiness} gate={d.gate} readinessGate={d.readinessGate} />}
       {step === "team" && <TeamStep visitId={id} staffing={d.staffing} coverage={d.coverage} approval={latest.approval_state} execStatus={v.exec_status} gate={d.gate} needsReason={latest.approval_state !== "draft"} role={actor.role} candidates={candidates} />}
+      {step === "team" && (actor.role === "manager" || actor.role === "admin") && ["scheduled", "in_progress", "on_hold"].includes(v.exec_status) && (
+        <SubstitutionForm visitId={id} staffing={d.staffing} candidates={candidates} today={todayIn(Date.now(), v.timezone)} />
+      )}
       {step === "expenses" && <ExpensesStep visitId={id} projectId={v.project_id} staffCount={d.staffing.length} plannedStart={v.planned_start} plannedEnd={v.planned_end} departure={v.departure_at} returnAt={v.return_at} estimates={estimates} />}
       {step === "review" && <ReviewStep planId={v.plan_id} revisions={d.revisions} scopeCount={d.scope.length} staffCount={d.staffing.length} hasDates={!!(v.planned_start && v.planned_end)} estimate={d.estimate} coverage={d.coverage} gate={d.gate} role={actor.role} />}
       {step === "review" && <ComparePanel baseline={d.comparison.baseline} current={d.comparison.current} live={d.comparison.live} />}

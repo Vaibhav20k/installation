@@ -3,6 +3,7 @@
  * Skill coverage alone never approves a site; exceptions apply only to configured gates.
  */
 import { z } from "zod";
+import { applianceBlockers } from "@/domain/site";
 import type { Queryable } from "../db/client";
 import { audit } from "../audit";
 import { forbidSelfApproval, requireCapability, requireProjectScope, requireRole } from "../auth/permissions";
@@ -45,7 +46,13 @@ export async function readinessGate(q: Queryable, visitId: string, onDate: strin
   const blockers = rows
     .filter((r) => r.required && !(r.result === "na" || (r.result === "pass" && (!r.valid_until || r.valid_until >= onDate))))
     .map((r) => `Readiness: ${r.check_code.replace("_", " ")} is ${r.result === "pass" ? "expired" : r.result}`);
-  return { ok: blockers.length === 0, blockers };
+  // Appliances on this visit's orders (or project-wide): a selected-only appliance or unbooked brand technician blocks.
+  const appliances = await q.query<{ appliance: string; state: string; brand_technician: string; exception_reason: string | null; depends_on: string | null }>(
+    `select a.appliance, a.state, a.brand_technician, a.exception_reason, a.depends_on from appliance_dependency a join visit v on v.project_id = a.project_id
+     where v.id = $1 and (a.order_item_id is null or a.order_item_id in (select oi.id from order_item oi join visit_order vo on vo.order_id = oi.order_id where vo.visit_id = $1))`, [visitId]);
+  const ap = applianceBlockers(appliances.map((a) => ({ appliance: a.appliance, state: a.state, brandTechnician: a.brand_technician, exceptionReason: a.exception_reason, dependsOn: a.depends_on })));
+  blockers.push(...ap.blockers.map((b) => `Appliance: ${b.message}`));
+  return { ok: blockers.length === 0, blockers, risks: ap.risks.map((r) => `Appliance (exception recorded): ${r.message}`) };
 }
 
 export async function setClearance(ctx: Ctx, input: unknown) {

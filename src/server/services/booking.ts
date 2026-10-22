@@ -128,15 +128,20 @@ export async function suggestTeamsForVisit(ctx: Ctx, input: unknown) {
   };
 }
 
-/** Coverage of the visit's current staffing (proposed, held or confirmed) over its dates. */
-export async function visitCoverage(q: Queryable, visitId: string) {
+/**
+ * Coverage of the visit's current staffing (proposed, held or confirmed) over its dates. With `activeAt`,
+ * only bookings running at that moment count, over the remaining dates (used after a substitution).
+ */
+export async function visitCoverage(q: Queryable, visitId: string, opts: { activeAt?: number } = {}) {
   const v = await loadVisit(q, visitId);
   const span = visitSpan(v);
   const members = await q.query<{ employee_id: string; job_role: string }>(
-    "select r.employee_id, e.job_role from reservation r join employee e on e.id = r.employee_id where r.visit_id = $1 and r.state in ('proposed','held','confirmed')", [visitId]);
+    `select r.employee_id, e.job_role from reservation r join employee e on e.id = r.employee_id where r.visit_id = $1 and r.state in ('proposed','held','confirmed')
+       and ($2::timestamptz is null or r.span @> $2::timestamptz)`, [visitId, opts.activeAt ? new Date(opts.activeAt).toISOString() : null]);
   if (!span) return { met: false, problems: ["Visit has no planned dates"], memberCount: members.length };
   const skills = await skillsByEmployee(q, members.map((m) => m.employee_id));
-  const dates = datesBetween(localDateOf(span.start, v.timezone), localDateOf(span.end - 1, v.timezone));
+  const from = opts.activeAt && opts.activeAt > span.start ? opts.activeAt : span.start;
+  const dates = datesBetween(localDateOf(from, v.timezone), localDateOf(span.end - 1, v.timezone));
   const cov = evaluateCoverage(members.map((m) => ({ id: m.employee_id, jobRole: m.job_role, skills: skills.get(m.employee_id) ?? [] })), await visitRequirements(q, visitId), dates);
   const problems = cov.results.filter((r) => !r.met).map((r) => `${r.skillCode}: ${r.message}`);
   if (members.length !== v.team_size) problems.push(`Staffed ${members.length} of ${v.team_size}`);
