@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 /**
  * Navigation in two forms from one list: a graphite index rail on desktop and a thumb-reach
  * bottom bar on phones, with the rest of the catalogue in a "More" sheet. Counts show each
@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  ChartBar, CalendarDots, Clock, Cube, DotsNine, GearSix, HardHat, Kanban, Receipt, SealCheck, SquaresFour, UsersThree, type Icon,
+  ChartBar, CalendarDots, Clock, ClockCountdown, Cube, DotsNine, GearSix, HardHat, Kanban, ListChecks, Receipt, SealCheck, SquaresFour, Tray, UsersThree, type Icon,
 } from "@phosphor-icons/react";
 
 interface Item { href: string; label: string; short: string; icon: Icon; staff?: boolean }
@@ -17,6 +17,9 @@ const ITEMS: Item[] = [
   { href: "/installations", label: "Installations", short: "Sites", icon: Kanban, staff: true },
   { href: "/", label: "Dashboard", short: "Overview", icon: SquaresFour },
   { href: "/my-day", label: "My day", short: "Today", icon: HardHat },
+  { href: "/attendance", label: "My attendance", short: "Attendance", icon: ClockCountdown },
+  { href: "/my-tasks", label: "My tasks", short: "Tasks", icon: ListChecks },
+  { href: "/requests", label: "My requests", short: "Requests", icon: Tray },
   { href: "/planning", label: "Planning", short: "Plan", icon: CalendarDots, staff: true },
   { href: "/approvals", label: "Approvals", short: "Approve", icon: SealCheck, staff: true },
   { href: "/projects", label: "Projects", short: "Projects", icon: Cube },
@@ -29,7 +32,13 @@ const ITEMS: Item[] = [
 
 // Phone bar: the four most frequent actions for the role, then More.
 const PRIMARY_STAFF = ["/installations", "/", "/planning", "/approvals"];
-const PRIMARY_CREW = ["/my-day", "/timesheets", "/projects", "/expenses"];
+const PRIMARY_CREW = ["/my-day", "/attendance", "/my-tasks", "/requests"];
+
+/** Instant feedback on the tapped tab while the next screen streams in (no placeholder screen). */
+function Pending() {
+  const { pending } = useLinkStatus();
+  return <span className={pending ? "nav-pending on" : "nav-pending"} aria-hidden />;
+}
 
 function useNav(role: string) {
   const path = usePathname();
@@ -44,7 +53,7 @@ export function RailNav({ role, counts }: { role: string; counts: Record<string,
     <nav aria-label="Sections">
       {visible.map((i) => (
         <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
-          <i.icon size={19} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
+          <Pending /><i.icon size={19} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
           <span>{i.label}</span>
           {(counts[i.href] ?? 0) > 0 ? <span className="count">{counts[i.href]}</span> : <span />}
         </Link>
@@ -66,7 +75,7 @@ export function TabBar({ role, counts, identity }: { role: string; counts: Recor
       <nav aria-label="Primary" className="tabbar">
         {primary.map((i) => (
           <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
-            <i.icon size={23} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
+            <Pending /><i.icon size={23} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
             <span>{i.short}</span>
             {count(i.href) > 0 && <span className="count" aria-label={`${count(i.href)} waiting`}>{count(i.href)}</span>}
           </Link>
@@ -84,7 +93,7 @@ export function TabBar({ role, counts, identity }: { role: string; counts: Recor
             <nav aria-label="More sections">
               {rest.map((i, n) => (
                 <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined} autoFocus={n === 0}>
-                  <i.icon size={22} aria-hidden />
+                  <Pending /><i.icon size={22} aria-hidden />
                   {i.label}
                   {count(i.href) > 0 && <span className="count">{count(i.href)}</span>}
                 </Link>
