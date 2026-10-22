@@ -8,6 +8,15 @@ import { Badge, DemoTag } from "@/components/ui/Badge";
 import { Empty, Notice, PageHeader, Tabs } from "@/components/ui/Notice";
 import { QualityPanel } from "@/components/project/QualityPanel";
 import { ScopeForms } from "@/components/project/ScopeForms";
+import { SitePanel } from "@/components/project/SitePanel";
+import { siteDetail } from "@/server/queries/site";
+import { CommercialPanel } from "@/components/project/CommercialPanel";
+import { commercialSummary } from "@/server/services/commercial";
+import { CustomerPanel } from "@/components/project/CustomerPanel";
+import { customerDetail } from "@/server/services/customer";
+import { PackagesPanel } from "@/components/project/PackagesPanel";
+import { packageBoard } from "@/server/services/packages";
+import { localDateOf } from "@/lib/dates";
 
 export const metadata = { title: "Project" };
 
@@ -25,7 +34,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const p = d.project;
   const remaining = d.scope.filter((t) => Number(t.remaining) > 0).length;
   const tabs = [
-    { id: "scope", label: `Orders & components (${remaining} open tasks)` }, { id: "visits", label: `Visits (${d.visits.length})` }, { id: "team", label: "Team" },
+    { id: "scope", label: `Orders & components (${remaining} open tasks)` }, { id: "visits", label: `Visits (${d.visits.length})` }, { id: "site", label: "Site & readiness" }, { id: "commercial", label: "Charges & extra work" }, { id: "customer", label: "Customer & design" }, { id: "packages", label: "Packages" }, { id: "team", label: "Team" },
     { id: "time", label: "Time" }, { id: "expenses", label: "Expenses" }, { id: "quality", label: `Quality & issues (${d.quality.length + d.issues.length})` }, { id: "history", label: "History" },
   ].map((t) => ({ ...t, href: `/projects/${id}?tab=${t.id}` }));
   const orders = [...new Map(d.scope.map((t) => [t.order_id, t])).values()];
@@ -100,6 +109,16 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           </dl><p><Link href={`/expenses?project=${id}`}>Open expenses for this project</Link></p></section>
         ) : null;
       })()}
+
+      {tab === "site" && <SitePanel projectId={id} s={await siteDetail(db, actor, id)} canEdit={actor.role !== "employee"} canExcept={actor.role === "manager" || actor.role === "admin"} />}
+
+      {tab === "commercial" && <CommercialPanel projectId={id} c={await commercialSummary(db, actor, id)} orders={d.orderList.map((o) => ({ id: o.id, label: o.business_id }))} actorId={actor.id} isManager={actor.role === "manager" || actor.role === "admin"} />}
+
+      {tab === "customer" && <CustomerPanel projectId={id} c={await customerDetail(db, actor, id)} items={d.itemList}
+        today={localDateOf(Date.now(), p.timezone)} canEdit={actor.role !== "employee"} isManager={actor.role === "manager" || actor.role === "admin"} actorId={actor.id} />}
+
+      {tab === "packages" && <PackagesPanel projectId={id} b={await packageBoard(db, actor, id, Date.now())} orders={d.orderList.map((o) => ({ id: o.id, label: o.business_id }))}
+        canEdit={actor.role !== "employee"} isManager={actor.role === "manager" || actor.role === "admin"} />}
 
       {tab === "quality" && <QualityPanel projectId={id} quality={d.quality} issues={d.issues} orders={orders.map((o) => ({ id: o.order_id, business_id: o.order_bid }))} actorId={actor.id} />}
 
