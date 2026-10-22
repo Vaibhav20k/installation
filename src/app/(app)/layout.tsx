@@ -9,6 +9,10 @@ import { ThemeQuick, ThemeSwitch } from "@/components/ThemeSwitch";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { demoAuthEnabled } from "@/server/auth/actor";
 import { PersonSwitch, type Person } from "@/components/PersonSwitch";
+import { NotificationBell } from "@/components/attendance/NotificationBell";
+import { UploadStatus } from "@/components/evidence/UploadStatus";
+import { attendanceExceptions } from "@/server/queries/attendance";
+import { pendingAdditionalWork } from "@/server/services/commercial";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const counts: Record<string, number> = {};
   if (actor.role !== "employee") {
     const q = await approvalQueues(db, actor);
-    counts["/approvals"] = q.plans.length + q.time.length + q.overtime.length + q.expenses.length;
+    const x = await attendanceExceptions(db, actor, Date.now());
+    const aw = await pendingAdditionalWork(db, actor);
+    counts["/approvals"] = q.plans.length + q.time.length + q.overtime.length + q.expenses.length + x.missed.length + x.corrections.length + x.leave.length + aw.length;
   }
   const [drafts] = await db.query<{ n: number }>("select count(*)::int n from time_entry where employee_id = $1 and is_current and state in ('draft','returned')", [actor.id]);
   if (drafts?.n) counts["/timesheets"] = drafts.n;
@@ -46,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="appbar">
         <Wordmark />
         <span className="appbar-end">
+          <NotificationBell />
           <ThemeQuick initial={theme} />
           <span className="whoami" aria-label={`Signed in as ${actor.name}`}>
             <span className="monogram" aria-hidden>{initials}</span>{actor.businessId}
@@ -62,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {demo && <details className="demo-banner" role="note"><summary><strong>Demo data</strong><span className="demo-more">What this means</span></summary><p>People, customers, rates, calendars, policies and targets are fictional or illustrative, not company records or approved payroll settings.</p></details>}
         {children}
       </main>
+      <UploadStatus />
       <TabBar role={actor.role} counts={counts} identity={identity} />
     </div>
   );

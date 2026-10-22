@@ -75,7 +75,9 @@ export async function myDay(q: Queryable, actor: Actor, now: number) {
      from visit_task vt join installation_task t on t.id = vt.task_id join component c on c.id = t.component_id where vt.visit_id = $1 and vt.status = 'active' order by c.business_id, t.step_order`, [visit.id, today]) : [];
   const entries = await q.query<{ id: string; activity: string; state: string; start: number; end: number; version: number }>(
     "select id, activity, state, lower(span) \"start\", upper(span) \"end\", version from time_entry where employee_id = $1 and is_current and state <> 'voided' and span && tstzrange($2::timestamptz,$3::timestamptz) order by lower(span)", [actor.id, ...range]);
-  return { today, timezone: cal.timezone, visit: visit ?? null, tasks, entries };
+  const orders = visit ? await q.query<{ id: string; business_id: string }>("select o.id, o.business_id from visit_order vo join sales_order o on o.id = vo.order_id where vo.visit_id = $1 order by o.business_id", [visit.id]) : [];
+  const packages = visit ? await q.query<{ id: string; code: string }>("select id, code from package where project_id = $1 order by code", [visit.project_id]) : [];
+  return { today, timezone: cal.timezone, visit: visit ?? null, tasks, entries, orders, packages };
 }
 
 export async function approvalQueues(q: Queryable, actor: Actor) {

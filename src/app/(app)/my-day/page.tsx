@@ -7,14 +7,28 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { submitTimeEntries } from "../../actions";
 import { DayProgress } from "@/components/time/DayProgress";
 import { TimeEntryForm } from "@/components/time/TimeEntryForm";
+import { AttendancePanel, type PanelShift } from "@/components/attendance/AttendancePanel";
+import { currentAttendance } from "@/server/queries/attendance";
+import { shortDate } from "@/domain/install-schedule";
+import { AdditionalWorkForm } from "@/components/project/CommercialForms";
+import { ScanBox, PackageExceptionForm } from "@/components/project/PackageForms";
 
 export const metadata = { title: "My day" };
 
 export default async function MyDayPage() {
   const { db, actor } = await session();
-  const d = await myDay(db, actor, Date.now());
+  const now = Date.now();
+  const d = await myDay(db, actor, now);
+  const att = await currentAttendance(db, actor, d.today, now);
+  const c = att.current;
+  const panel: PanelShift | null = c ? {
+    shiftId: c.shift.id, state: c.summary.state === "not_started" ? "clocked_out" : c.summary.state, activity: c.summary.activity, t0: Number(c.shift.t0),
+    warnAt: Number(c.shift.warn_at), otAt: Number(c.shift.ot_at), timezone: c.shift.timezone, workDate: c.shift.work_date, open: c.summary.open,
+    regularWorkMinutes: c.summary.regularWorkMinutes, recordedOvertimeWorkMinutes: c.summary.recordedOvertimeWorkMinutes, breakMinutes: c.summary.breakMinutes,
+    lastClockOut: c.summary.lastClockOut, otReason: c.shift.ot_reason,
+  } : null;
   const drafts = d.entries.filter((e) => e.state === "draft").map((e) => e.id);
-  const first = actor.name.split(" ")[0];
+  const first = actor.name.split(" ")[0] ?? actor.name;
   const working = d.visit?.exec_status === "in_progress";
   return (
     <div className="stack" style={{ gap: 16, maxWidth: 720, width: "100%", margin: "0 auto" }}>
@@ -22,6 +36,12 @@ export default async function MyDayPage() {
         <h1>Today, {first}</h1>
         <p className="muted small" style={{ margin: 0 }}>{d.today} · entries save to the server straight away; this screen needs a connection.</p>
       </div>
+
+      <AttendancePanel shift={panel} serverNow={now} employeeFirstName={first} today={shortDate(d.today)}
+        visitLabel={att.visit ? `${att.visit.business_id} · ${att.visit.project}` : d.visit ? `${d.visit.business_id} · ${d.visit.project}` : null} />
+      {att.missed.length > 0 && (
+        <p className="notice" data-tone="warn" role="status">You did not clock out on {att.missed.map((m) => shortDate(m.shift.work_date)).join(", ")}. That day stays provisional; open My attendance and request the correct clock-out time.</p>
+      )}
 
       {!d.visit ? (
         <section className="plate">
@@ -39,7 +59,7 @@ export default async function MyDayPage() {
           <p className="plate-sub" style={{ display: "flex", gap: 6, alignItems: "center" }}><MapPin size={16} aria-hidden /> {d.visit.site_address}</p>
           <ol className="callouts" style={{ marginTop: 10 }}>
             <li><a href="#progress"><span className="callout-n">1</span><span><span className="callout-title">Record progress</span><span className="callout-meta">{working ? `${d.tasks.length} task${d.tasks.length === 1 ? "" : "s"} on today's plate` : "Opens once your supervisor starts the visit"}</span></span><Package size={20} className="callout-go" aria-hidden /></a></li>
-            <li><a href="#time"><span className="callout-n">2</span><span><span className="callout-title">Log start, end and breaks</span><span className="callout-meta">{d.entries.length ? `${d.entries.length} entr${d.entries.length === 1 ? "y" : "ies"} today` : "Nothing logged yet"}</span></span><Clock size={20} className="callout-go" aria-hidden /></a></li>
+            <li><a href="#time"><span className="callout-n">2</span><span><span className="callout-title">Check today&apos;s time rows</span><span className="callout-meta">{d.entries.length ? `${d.entries.length} entr${d.entries.length === 1 ? "y" : "ies"} today` : "Made from your clock-out, or add one by hand"}</span></span><Clock size={20} className="callout-go" aria-hidden /></a></li>
             <li><a href={working ? "#blocker" : `/visits/${d.visit.id}?step=execution`}><span className="callout-n">3</span><span><span className="callout-title">{working ? "Report a blocker" : "Open the visit"}</span><span className="callout-meta">{working ? "Materials, site access, equipment" : "Status, team and readiness"}</span></span>{working ? <Warning size={20} className="callout-go" aria-hidden /> : <CaretRight size={20} className="callout-go" aria-hidden />}</a></li>
           </ol>
         </section>
@@ -51,6 +71,23 @@ export default async function MyDayPage() {
           {d.tasks.length === 0 ? <p className="muted" style={{ margin: 0 }}>No open tasks on this visit.</p> : (
             <DayProgress visitId={d.visit.id} tasks={d.tasks.map((t) => ({ ...t, scoped: qty(t.scoped), accepted: qty(t.accepted), pending: qty(t.pending), target: t.target ? qty(t.target) : null }))} canRecord={working} isEmployee={actor.role === "employee"} />
           )}
+        </section>
+      )}
+
+      {d.visit && working && (
+        <section className="plate" aria-labelledby="h-pk">
+          <div className="plate-head"><h2 id="h-pk" style={{ margin: 0 }}>Receive packages</h2></div>
+          <ScanBox projectId={d.visit.project_id} />
+          <details><summary className="small">Report a missing or damaged item</summary><PackageExceptionForm projectId={d.visit.project_id} packages={d.packages} /></details>
+        </section>
+      )}
+
+      {d.visit && working && (
+        <section className="plate" aria-labelledby="h-extra">
+          <div className="plate-head"><h2 id="h-extra" style={{ margin: 0 }}>Extra work asked for on site?</h2></div>
+          <details><summary className="small">Record a request for additional work</summary>
+            <AdditionalWorkForm projectId={d.visit.project_id} visitId={d.visit.id} orders={d.orders.map((o) => ({ id: o.id, label: o.business_id }))} />
+          </details>
         </section>
       )}
 

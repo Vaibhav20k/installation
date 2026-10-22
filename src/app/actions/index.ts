@@ -21,6 +21,12 @@ import * as master from "@/server/services/master";
 import * as imports from "@/server/services/imports";
 import * as travel from "@/server/services/travel";
 import * as schedule from "@/server/services/schedule";
+import * as attendance from "@/server/services/attendance";
+import * as evidence from "@/server/services/evidence";
+import * as site from "@/server/services/site";
+import * as commercial from "@/server/services/commercial";
+import * as customer from "@/server/services/customer";
+import * as packages from "@/server/services/packages";
 
 export async function signInAs(employeeId: string) {
   if (!demoAuthEnabled()) throw new Error("Demo sign-in is disabled in production.");
@@ -134,3 +140,51 @@ export async function recordTravelActual(input: unknown) { return run(travel.rec
 // Installation schedules shared with customers
 export async function applyInstallSchedule(input: unknown) { return run(schedule.applySchedule, input, I); }
 export async function setScheduleDayStatus(input: unknown) { return run(schedule.setScheduleDay, input, I); }
+
+// Attendance: fixed 8-hour session, corrections, leave and notifications
+const A = ["/my-day", "/attendance", "/requests", "/approvals", "/timesheets"];
+export async function clockIn(input: unknown) { return run(attendance.clockIn, input, A); }
+export async function clockOut(input: unknown) { return run(attendance.clockOut, input, A); }
+export async function setAttendanceActivity(input: unknown) { return run(attendance.setActivity, input, ["/my-day", "/attendance"]); }
+export async function addAttendanceNote(input: unknown) { return run(attendance.addAttendanceNote, input, ["/my-day", "/attendance"]); }
+export async function setOvertimeReason(input: unknown) { return run(attendance.setOvertimeReason, input, ["/my-day", "/attendance", "/requests"]); }
+export async function requestAttendanceCorrection(input: unknown) { return run(attendance.requestCorrection, input, A); }
+export async function decideAttendanceCorrection(input: unknown) { return run(attendance.decideCorrection, input, A); }
+export async function requestLeave(input: unknown) { return run(attendance.requestLeave, input, ["/requests", "/approvals"]); }
+export async function decideLeave(input: unknown) { return run(attendance.decideLeave, input, ["/requests", "/approvals", "/planning", "/people"]); }
+export async function markNotificationsRead(input: unknown) { return run(attendance.markNotificationsRead, input, []); }
+
+// Evidence (optional photos and videos on worker input)
+export async function createEvidenceUpload(input: unknown) { return run(evidence.createEvidenceUpload, input, []); }
+export async function completeEvidenceUpload(input: unknown) { return run(evidence.completeEvidenceUpload, input, []); }
+export async function linkEvidence(input: unknown) { return run(evidence.linkEvidence, input, []); }
+export async function removeDraftEvidence(input: unknown) { return run(evidence.removeDraftEvidence, input, []); }
+
+// Site, contacts, quantities, appliances and substitution
+const S = ["/projects", "/visits", "/planning", "/installations"];
+export async function addContact(input: unknown) { return run(site.addContact, input, S); }
+export async function setQuantitySnapshot(input: unknown) { return run(site.setQuantitySnapshot, input, S); }
+export async function addEffortDriver(input: unknown) { return run(site.addEffortDriver, input, S); }
+export async function setSiteRestriction(input: unknown) { return run(site.setSiteRestriction, input, S); }
+export async function saveAppliance(input: unknown) { return run(site.saveAppliance, input, S); }
+export async function exceptAppliance(input: unknown) { return run(site.exceptAppliance, input, S); }
+export async function substitute(input: unknown) { return run(site.substitute, input, [...S, "/my-day", "/my-tasks"]); }
+
+// Additional work and installation charges
+export async function requestAdditionalWork(input: unknown) { return run(commercial.requestAdditionalWork, input, ["/projects", "/my-day", "/approvals"]); }
+export async function decideAdditionalWork(input: unknown) { return run(commercial.decideAdditionalWork, input, ["/projects", "/approvals"]); }
+export async function setInstallationCharge(input: unknown) { return run(commercial.setInstallationCharge, input, ["/projects"]); }
+
+// Customer coordination, design requests and packages
+const C = ["/projects", "/my-day"];
+export async function setJourney(input: unknown) { return run(customer.setJourney, input, C); }
+export async function addObligation(input: unknown) { return run(customer.addObligation, input, C); }
+export async function completeObligation(input: unknown) { return run(customer.completeObligation, input, C); }
+export async function logCommunication(input: unknown) { return run(customer.logCommunication, input, C); }
+export async function createDesignRequest(input: unknown) { return run(customer.createDesignRequest, input, [...C, "/approvals"]); }
+export async function addDesignRevision(input: unknown) { return run(customer.addDesignRevision, input, C); }
+export async function decideDesignRequest(input: unknown) { return run(customer.decideDesignRequest, input, [...C, "/approvals"]); }
+export async function addPackage(input: unknown) { return run(packages.addPackage, input, C); }
+export async function recordScan(input: unknown) { return run(packages.recordScan, input, C); }
+export async function raisePackageException(input: unknown) { return run(packages.raisePackageException, input, C); }
+export async function decidePackageException(input: unknown) { return run(packages.decidePackageException, input, C); }
