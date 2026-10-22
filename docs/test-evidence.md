@@ -48,3 +48,38 @@ Dataset: 40 employees, 4 visits, 9 time entries, 9 reservations. Dashboard 53 ms
 - Keyboard-only operation and 200% zoom were not exercised interactively; semantic controls, visible focus styles and native dialogs with focus restoration are in place.
 - No Playwright suite exists (browsers not installed); integration tests cover services against a real PostgreSQL engine instead.
 - External PostgreSQL (`DATABASE_URL`) was not exercised; only the embedded engine was.
+
+## V3 evidence (22–23 Oct 2026)
+
+Same machine; Chrome headless via puppeteer-core for browser checks.
+
+### Automated tests
+
+`npx tsc --noEmit`: 0 errors. `npx vitest run`: **22 files, 146 tests, all passed** (18.7 s). One earlier full run under heavy CPU load from a concurrent build reported 121/136; three clean reruns passed, so the cause was timing pressure, not a defect.
+
+| File | Tests | What it proves (spec scenario numbers) |
+|---|---|---|
+| `unit/shift.test.ts` | 10 | 480/450 constants, 09:00 and 10:15 starts, midnight (43, 67); clock-out at 16:00 and exactly at 17:00 (44); 09:00–19:00 with a break gives 7 h regular + 2 h recorded OT (11); idle across the boundary (48); resume keeps the anchor (49); draft rows |
+| `integration/attendance.test.ts` | 12 | Durable jobs: no reminder at 16:29:59, exactly one at 16:30 even when processed twice (43, 45); a 5-minute-late runner records OT effective 17:00 (46); catch-up message and OT candidate (51); early and exact clock-outs (44); resume re-arms jobs; missed clock-out stays provisional (52); corrections never self-approved, anchor moves with a new revision (50); leave decided only by the manager chain |
+| `integration/evidence.test.ts` | 6 | Photo + video upload, sniffing, linking, captions, idempotent link (70); disguised/oversize/PDF rejected; cross-worker link and download blocked; leave media private (73); draft vs linked removal (74); storage off reports unavailable while the record saves (77) |
+| `unit/storage.test.ts` | 3 | Upload token binding; content sniffing for allowed and rejected formats |
+| `unit/site.test.ts` | 6 | Net 100 vs gross 125 (56); drivers without rates are unknown, not zero; kinds must match (36); six-hour site window adds a day (23); appliance blockers and risks (57) |
+| `integration/site.test.ts` | 4 | One primary contact; net kind/unit enforced; appliance in the readiness gate, manager exception becomes a risk (57); day-4 substitution keeps days 1–3, blocks overlapping and non-manager substitutions (61) |
+| `integration/commercial.test.ts` | 3 | Additional work never self-approved, chargeable needs a quote, free-of-charge allowed; charges/waivers/costs separate with no profit field; future-task OT outside schedule, pending policy; catch-up ineligible (51) |
+| `integration/customer-packages.test.ts` | 4 | Journey and logs never claim delivery; revision limit unset never blocks (64); receipt unverified, de-duplicated scans, unknown codes kept (59); damage exception with separate responsibility and charge (60) |
+| `unit/demo-auth.test.ts` | 3 | Demo identities off in production unless the local preview flag is set |
+
+### Browser checks (production build)
+
+- Worker flow at 390 px (EMP-015, EMP-020): clock in → regular state; photo uploaded and linked to the progress event; the timer kept its anchor across route changes; 0 px overflow; no console errors.
+- Every V3 screen at 390 px and 1440 px (Site, Charges, Customer, Packages tabs, Approvals, Installations with a 14-day window): HTTP 200, one h1, no error page, no console errors, no horizontal overflow.
+- Lightweight DOM accessibility audit on 12 pages (forms opened): no unlabelled fields, no unnamed buttons or links, alt text present, no duplicate ids, no heading jumps, primary controls at least 40×40 px, visible focus on the first tab stop. This is not a full WCAG audit; screen-reader testing and 200% zoom were not performed.
+- Bugs found in the browser and fixed: the stamp animation widened phone pages and hid the bottom bar (contained); the app bar overflowed at 390 px (wordmark shortened); the 7:30 and 8:00 labels collided (separated); missing favicon 404 (icon added).
+
+### Performance
+
+See `performance-baseline.md` and `performance-after.md`: tab click to usable page went from 73/93 ms (median/p95, full reloads) to 40/64 ms. On the large fixture, every documented budget was met: desktop p95 at most 148 ms; mobile-profile p95 at most 386 ms; feedback p95 74 ms desktop and 6 ms mobile.
+
+### Not verified
+
+Real phones (sticky hover, tap delay, safe areas, keyboard, camera capture); closed-app push; production object storage; behaviour with a real authentication provider.

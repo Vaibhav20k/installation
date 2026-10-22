@@ -74,3 +74,21 @@ Issue ID, Date Raised, Order / Project ID (split), Function, Issue Category, Imp
 ## Provisional target references (verbatim, never active)
 
 Installation time per kitchen (500–700 sq ft): baseline "10–12 days (current stated range)", target "Confirm target and scope; reference target: 6 days" · FTR "≥95%" · Complaints "40% reduction vs agreed baseline" · Unloading savings "₹1.5–2 lakh/month savings target (validate period/scope)" · Productivity "Set after 2 weeks of reliable data" · Overtime cost "Set after baseline review" · Repeat visits "Reduce after baseline" · MIS "100% complete and on time".
+
+## V3 source mapping (spec of 22 Oct 2026)
+
+The V3 spec consolidates three board-meeting transcripts and the user's 22 Oct clarifications. The transcripts themselves were not reopened here; this mapping follows the spec's consolidation.
+
+| Source | Requirement | Where it lives |
+|---|---|---|
+| User, 22 Oct | Slow tab clicks fixed with measurements | `performance-baseline.md`, `performance-after.md` |
+| User, 22 Oct | Fixed 8-hour session, 7:30 reminder, automatic recorded OT | `domain/shift.ts`, `services/attendance.ts`, `shift-contract.md` |
+| User, 22 Oct | Keka-inspired worker self-service | My day, Attendance, Tasks, Requests |
+| User, latest | ₹1,000 and other meeting numbers are examples only | `example-policy-audit.md` |
+| User, latest | Optional photos/videos on every worker input | `manual-input-evidence-coverage.md` |
+| Board 1 | Customer contacts; net vs gross; multiple effort drivers; additional work and charges; appliance readiness | Site & readiness and Charges tabs |
+| Board 2 | Customer communication owner; dispatch/receipt scans; shortage/damage attribution; site restrictions; design/measurement revisions | Customer & design and Packages tabs; site window |
+| Board 3 | Phone list view; bounded progress; idle time; evidence retention proposals; substitution and leave | Worker views; idle activity; retention inactive; substitution form; leave requests |
+| User (original) | Catch-up time ineligible for overtime | Unchanged rule; also applied to attendance-derived OT |
+
+Conflicting proposals kept inactive: design revision limit (two vs other counts), evidence retention (45 days vs one year), included or chargeable visit counts.

@@ -42,3 +42,21 @@ Each entry: decision, reason, alternatives, status. "Proposal" marks engineering
 - **Visit completion:** all active scoped tasks accepted, or transferred/cancelled with a reason.
 - **Project closure:** not automated. A project is closable only when every order's required quantity is accepted or explicitly cancelled, no visit is in progress, and no month reconciliation or expense for it is pending. This gate is shown through the dashboard counts; an explicit close action is deferred (see phase-status).
 - **Month finalization:** policy approved, month ended, every expected day accepted or reviewed-missing, no unresolved exceptions, no pending eligibility reviews, all needed policy fields set; manager, not self.
+
+## V3 decisions (22–23 Oct 2026)
+
+| ID | Decision | Reason | Status |
+|---|---|---|---|
+| D3-01 | Local production preview (`npm run local`) with demo identities behind `IM_LOCAL_DEMO`, test-covered | Dev-mode compile was the measured cause of slowness; production stays locked | Proposal, done |
+| D3-02 | No route-level loading placeholder; tab-level `useLinkStatus` feedback instead | The placeholder made React reveal pages in ~300 ms batches (traced) | Proposal, done |
+| D3-03 | Shift state derived from server timestamps on every read; jobs only record transitions and notify | A late or restarted runner never shows a wrong state | Proposal, done |
+| D3-04 | Due jobs settled by an in-process 30 s runner plus every read; production can use `/api/jobs/run` | No request-bound timers; survives restarts | Proposal, done |
+| D3-05 | Clock-out exactly at t0+480 cancels the boundary job instead of running it | "Clock-out at 17:00 produces no open overtime session" | Done, tested |
+| D3-06 | Same-day clock-in resumes the shift (same anchor) and re-arms cancelled jobs | No second eight-hour allowance; delivered events never repeat | Done, tested |
+| D3-07 | A missed clock-out is never auto-closed; only an approved clock-out correction closes it | No fabricated end times | Done, tested |
+| D3-08 | Overtime period for attendance-derived time is after t0+480, not the calendar schedule | The confirmed fixed-session rule | Done, tested |
+| D3-09 | Evidence bytes in a private storage adapter, metadata in the database; content sniffing; signed short-lived upload URLs; permission re-checked on link and download | Spec storage contract | Done; production store not configured |
+| D3-10 | Upload queue outside React (module singleton), at most 2 in parallel | Survives route changes; never re-renders the timer | Done |
+| D3-11 | Leave visible only to the requester, manager chain and admins | Restricted personal requests | Done, tested |
+| D3-12 | Package status derived from scan events; "receipt unverified" once the visit is under way | A missing scan is not loss | Done, tested |
+| D3-13 | Feature CSS split into `src/styles/features.css` | Keep files under 500 lines | Done |

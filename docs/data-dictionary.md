@@ -69,3 +69,33 @@ source_import (system + external_id + revision unique), audit_event (append-only
 | MIS | complete obligations / expected; on-time complete / expected | `misCompleteness` |
 | Scheduled utilization | reserved working-calendar minutes / available minutes after leave (not capped) | `scheduledUtilization` |
 | Installation days | inclusive local calendar days; in-progress is an as-of value | `installationDays`, installation tracker |
+
+## V3 entities (migrations 005–009)
+
+| Table | Purpose | Key rules |
+|---|---|---|
+| `schedule_template`, `visit_schedule_day` | Customer-facing day-by-day installation schedule | Off days from the calendar; days ticked done/slipped (reason required) |
+| `shift_instance` | One attendance shift per employee per local work date | `warn_at = t0 + 450 min`, `ot_at = t0 + 480 min` (check constraint); `revision` bumps on approved correction; `clock_out_override` for approved end corrections |
+| `attendance_event` | Append-only punches, activities, notes, overtime transition, corrections | Trigger forbids update/delete; one `overtime_started` per shift |
+| `attendance_correction` | Clock-in/out correction request and decision | Never self-approved; scope-checked |
+| `due_job` | Durable reminder/overtime jobs | Unique per (shift, revision, kind); pending/done/cancelled/superseded |
+| `notification` | In-app inbox | `dedupe_key = shift:event`, so each logical event is delivered once; `overdue` for late reminders |
+| `leave_request` | Leave / emergency unavailability | Approval creates `leave_record`; private to the manager chain and admins |
+| `evidence_asset`, `evidence_link`, `upload_session` | Private image/video evidence | No bytes in the database; parent-type allowlist; link idempotent per (asset, parent) |
+| `customer_contact` | Related people per customer account | One active primary per account |
+| `quantity_snapshot` | Net installed vs gross/material quantity | Net must match the component's kind and unit; never converted |
+| `effort_driver` | Extra disjoint activity drivers | Unique per (component, driver, activity) |
+| `site_restriction` | Allowed weekdays/hours and restricted activities | One active per project |
+| `appliance_dependency` | Appliance state and brand technician | Blocks readiness unless on site/inspected and the technician is not needed or booked; an exception keeps a risk |
+| `substitution` | Crew replacement at an effective moment | The outgoing reservation ends there; the incoming one starts there |
+| `additional_work` | Requested extra scope | Approved with a charge type; chargeable needs a quote |
+| `installation_charge` | Quoted charge and waiver per order | Waiver ≤ quote; history kept |
+| `customer_journey`, `journey_obligation`, `communication_log` | Customer coordination | Logs record what happened; acknowledgement only as recorded |
+| `design_request`, `design_revision` | Design/measurement requests | Escalation only if an approved limit is configured |
+| `package`, `scan_event`, `package_exception` | Manifest, scans, exceptions | Scans de-duplicated by client event id |
+
+Readable IDs added: AW- (additional work), DR- (design request), PX- (package exception).
+
+### Shift formulas (spec §9)
+
+`elapsed = max(0, tEnd − t0)`; `regularElapsed = min(elapsed, 480)`; `overtimePeriodElapsed = max(0, elapsed − 480)`; `regularWork = |work ∩ [t0, t0+480)|`; `recordedOvertimeWork = |work ∩ [t0+480, tEnd)|`. Breaks, idle and travel keep their own categories; clocked-out gaps are not counted.
