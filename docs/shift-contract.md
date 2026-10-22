@@ -32,6 +32,30 @@ Worker messages (verbatim): see `SHIFT_MESSAGES` in `src/domain/shift.ts`.
 | Push with the app closed (service worker + push service) | **Not configured.** Needs VAPID keys and a push transport; shown honestly in the bell panel |
 | SMS / email / WhatsApp | Not authorised; not built |
 
+## Clock-in photo (user rule, 23 Oct 2026)
+
+Every clock-in, including clocking in again the same day, needs a photo.
+- **Capture:** the app opens the front camera (`ClockInCamera`), shrinks the photo (longest side 960 px) and uploads it.
+- **Server check:** the server accepts the clock-in only with a ready, content-checked image of the actor's, uploaded in the last 15 minutes and not used before. The photo is linked to the clock-in or resume event.
+- **No camera:** if the camera is blocked or missing, the phone's own camera or photo picker is used. A photo is still required.
+- **Clock-out:** never needs a photo.
+- **The anchor:** `t0` is the server time when the clock-in is accepted, after the photo has uploaded.
+
+This deliberately overrides the V3 spec's "media never blocks attendance" principle at the user's direct instruction. The cost: a worker with no network or no working camera cannot clock in until the photo uploads. A supervisor correction remains the fallback for a missed clock-in.
+
+## Idle reasons
+
+Idle needs a reason picked from a list:
+- Power cut
+- No site access / keys
+- Waiting for material
+- Waiting for another trade
+- Tool or equipment problem
+- Waiting for customer decision
+- Weather
+- Lift or society restriction
+- Other, which asks for the specific reason
+
 ## Clock-out and timesheets
 
 Clock-out turns the shift into draft time rows: working time (with breaks inside it) becomes installation rows, travel and idle become travel and waiting rows. A break outside working time is unlogged. Rows overlapping existing entries are skipped and reported, never overwritten. Work after `t0 + 480` becomes an `ot_request` candidate with the worker's chosen reason; the existing review applies the confirmed rule that original-target catch-up is ineligible. Without a reason the candidate says "reason not given yet".

@@ -87,6 +87,9 @@ Sources: **U3** = the user's 22 Oct clarifications, **B1–B3** = board meetings
 | V3-19 | Design/measurement requests and revisions; limit unset until approved | B2 | Feature done; limit unresolved | `design_request`, `design_revision`, `design_revision_limit` setting | `customer-packages.test.ts` |
 | V3-20 | Explicit substitution keeping the outgoing person's history | B3 | Done | `substitution`, team step form | `site.test.ts` (61) |
 | V3-21 | Worker and manager views; adjustable handover window, 7-day preset | B3 | Done | Installations board range filter | browser check |
+| V3-22 | Clock-in photo mandatory, front camera; not at clock-out | U, 23 Oct | Confirmed, done | `ClockInCamera`, `requireClockInPhoto` | `attendance.test.ts`, browser flow with simulated camera |
+| V3-23 | Idle reasons as a list with "Other" free text | U, 23 Oct | Confirmed, done | `AttendancePanel` | browser flow |
+| V3-24 | Add team members beyond the planned 3; replace any member (sick, cannot join) | U, 23 Oct | Confirmed, done | `addCrewMember`, `substitute`, `TeamManager` | `site.test.ts`, browser flow |
 
 ### V3 unresolved decisions
 

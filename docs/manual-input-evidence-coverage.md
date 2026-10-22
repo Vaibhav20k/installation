@@ -8,6 +8,7 @@ On mobile, the camera buttons appear only where the pointer is coarse; desktop g
 |---|---|---|---|---|
 | /my-day → `DayProgress` TaskRow | Quantity recorded for a task | `progress_event` | `progress.quantity` | Project scope |
 | /my-day → `DayProgress` blocker | Report a blocker | `delay_event` | `blocker.report` | Project scope |
+| /my-day → `ClockInCamera` | Clock-in (photo **required**, front camera; picker fallback) | `attendance_event` (clock_in / resume) | `attendance.clock_in` | Owner; supervisor+ in employee scope can view |
 | /my-day → `AttendancePanel` | Attendance note | `attendance_event` (note) | `attendance.note` | Owner; supervisor+ in employee scope can view |
 | /my-day, /attendance → `CorrectionForm` | Clock-in / clock-out correction | `attendance_correction` | `attendance.correction` | Owner; supervisor+ in scope |
 | /my-day, /timesheets → `TimeEntryForm` | New, edited or corrected time entry | `time_entry` | `time.entry`, `time.correction` | Owner; supervisor+ in scope |

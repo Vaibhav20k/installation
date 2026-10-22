@@ -60,3 +60,6 @@ Each entry: decision, reason, alternatives, status. "Proposal" marks engineering
 | D3-11 | Leave visible only to the requester, manager chain and admins | Restricted personal requests | Done, tested |
 | D3-12 | Package status derived from scan events; "receipt unverified" once the visit is under way | A missing scan is not loss | Done, tested |
 | D3-13 | Feature CSS split into `src/styles/features.css` | Keep files under 500 lines | Done |
+| D3-14 | Clock-in requires a fresh front-camera photo (server-enforced); clock-out does not | Direct user instruction (23 Oct). This overrides the spec's optional-media principle for clock-in only; no network or camera means no clock-in, with supervisor correction as the fallback | Done, tested |
+| D3-15 | Idle reason chosen from a fixed list with "Other" free text | Direct user instruction (23 Oct); keeps reasons comparable in reports | Done |
+| D3-16 | Managers can add crew to any open visit (team size grows) and replace any member from a moment; replacing before a booking starts hands over the whole booking | Direct user instruction (23 Oct): plans needing more than 3 people; sick or absent workers | Done, tested |
