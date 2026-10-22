@@ -5,7 +5,7 @@ import { makeCtx } from "@/server/services/context";
 import { addAttendanceNote, clockIn, clockOut, decideCorrection, decideLeave, processDueJobs, requestCorrection, requestLeave, setActivity, setOvertimeReason } from "@/server/services/attendance";
 import { currentAttendance, notificationsFor } from "@/server/queries/attendance";
 import { AppError } from "@/server/errors";
-import { freshDb } from "./helpers";
+import { clockInPhoto, freshDb } from "./helpers";
 
 // Clock times are isolated test inputs (spec §14). IST = UTC+05:30.
 const at = (hhmm: string, day = "2026-10-12") => Date.parse(`${day}T${hhmm}+05:30`);
@@ -30,15 +30,22 @@ beforeAll(async () => {
 afterAll(async () => { await db.close(); });
 
 describe("fixed 8-hour session with durable jobs", () => {
+  it("clock-in needs a fresh, unused photo (user rule, 23 Oct)", async () => {
+    expect(await kind(clockIn(await as(worker, at("08:50")), {}))).toBe("validation");
+    expect(await kind(clockIn(await as(worker, at("08:50")), { photoDraftKey: await clockInPhoto(db, worker, at("08:30")) }))).toBe("validation");
+  });
+
   it("clock-in stores t0 and the 450/480-minute deadlines, and schedules two jobs (scenario 43)", async () => {
-    const r = await clockIn(await as(worker, at("09:00")), {});
+    const r = await clockIn(await as(worker, at("09:00")), { photoDraftKey: await clockInPhoto(db, worker, at("09:00")) });
     expect(r.resumed).toBe(false);
     const s = await shiftOf(worker);
+    const linked = await db.query("select 1 from evidence_link l join attendance_event e on e.id = l.parent_id where e.shift_id = $1 and e.kind = 'clock_in' and l.context = 'attendance.clock_in'", [s.id]);
+    expect(linked).toHaveLength(1);
     expect(Number(s.warn_at)).toBe(at("16:30"));
     expect(Number(s.ot_at)).toBe(at("17:00"));
     const jobs = await db.query("select kind from due_job where shift_id = $1 and status = 'pending'", [s.id]);
     expect(jobs).toHaveLength(2);
-    expect(await kind(clockIn(await as(worker, at("09:05")), {}))).toBe("conflict");
+    expect(await kind(clockIn(await as(worker, at("09:05")), { photoDraftKey: await clockInPhoto(db, worker, at("09:05")) }))).toBe("conflict");
   });
 
   it("no reminder before 7:30; exactly one at 7:30, even if processed repeatedly (scenarios 43, 45)", async () => {
@@ -95,7 +102,7 @@ describe("fixed 8-hour session with durable jobs", () => {
 describe("early and boundary clock-outs, resume and missed clock-out", () => {
   const day = "2026-10-13";
   it("clock-out at 16:00 cancels pending reminders and creates no overtime (scenario 44)", async () => {
-    await clockIn(await as(worker, at("09:00", day)), {});
+    await clockIn(await as(worker, at("09:00", day)), { photoDraftKey: await clockInPhoto(db, worker, at("09:00", day)) });
     const s = await shiftOf(worker, day);
     await clockOut(await as(worker, at("16:00", day)), { shiftId: s.id });
     await processDueJobs(db, at("18:00", day));
@@ -105,7 +112,7 @@ describe("early and boundary clock-outs, resume and missed clock-out", () => {
   });
 
   it("clocking in again keeps the anchor and re-arms the deadlines without a fresh 8 hours (scenario 49)", async () => {
-    const r = await clockIn(await as(worker, at("16:20", day)), {});
+    const r = await clockIn(await as(worker, at("16:20", day)), { photoDraftKey: await clockInPhoto(db, worker, at("16:20", day)) });
     expect(r.resumed).toBe(true);
     const s = await shiftOf(worker, day);
     expect(Number(s.t0)).toBe(at("09:00", day));
@@ -124,8 +131,8 @@ describe("early and boundary clock-outs, resume and missed clock-out", () => {
   });
 
   it("an unclosed shift becomes a provisional missed clock-out, never auto-finalised (scenario 52)", async () => {
-    await clockIn(await as(worker, at("09:00", "2026-10-14")), {});
-    await clockIn(await as(worker, at("09:10", "2026-10-15")), {});
+    await clockIn(await as(worker, at("09:00", "2026-10-14")), { photoDraftKey: await clockInPhoto(db, worker, at("09:00", "2026-10-14")) });
+    await clockIn(await as(worker, at("09:10", "2026-10-15")), { photoDraftKey: await clockInPhoto(db, worker, at("09:10", "2026-10-15")) });
     const [old] = await db.query<{ missed_clock_out: boolean; clock_out_override: number | null }>("select missed_clock_out, clock_out_override from shift_instance where employee_id = $1 and work_date = '2026-10-14'", [worker]);
     expect(old!.missed_clock_out).toBe(true);
     expect(old!.clock_out_override).toBeNull();

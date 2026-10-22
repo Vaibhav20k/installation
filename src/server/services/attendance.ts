@@ -58,10 +58,30 @@ async function todaysVisit(q: Queryable, employeeId: string, now: number) {
   return v?.id ?? null;
 }
 
+/**
+ * Clock-in photo (user rule, 23 Oct): every clock-in (and same-day re-clock-in) needs a photo that has already
+ * uploaded and passed the content check. Returns the asset to link to the punch. Clock-out needs no photo.
+ */
+async function requireClockInPhoto(q: Queryable, actorId: string, draftKey: string | undefined, now: number) {
+  if (!draftKey) throw validation("Take a clock-in photo first.", ["photo: required"]);
+  const [a] = await q.query<{ asset_id: string }>(
+    `select s.asset_id from upload_session s join evidence_asset a on a.id = s.asset_id
+     where s.actor_id = $1 and s.draft_key = $2 and a.state = 'ready' and a.media_type = 'image' and s.created_at > $3::timestamptz
+       and not exists (select 1 from evidence_link l where l.asset_id = s.asset_id) order by s.created_at desc limit 1`,
+    [actorId, draftKey, iso(now - 15 * 60_000)]);
+  if (!a) throw validation("The clock-in photo has not finished uploading, or it is older than 15 minutes. Take it again.", ["photo: required"]);
+  return a.asset_id;
+}
+
+async function linkClockInPhoto(q: Queryable, assetId: string, eventId: string, actorId: string) {
+  await q.query("insert into evidence_link(asset_id, parent_type, parent_id, context, actor_id) values ($1,'attendance_event',$2,'attendance.clock_in',$3) on conflict do nothing", [assetId, eventId, actorId]);
+}
+
 export async function clockIn(ctx: Ctx, input: unknown) {
-  const d = parse(z.object({ note: z.string().max(300).optional() }), input ?? {});
+  const d = parse(z.object({ note: z.string().max(300).optional(), photoDraftKey: z.string().uuid().optional() }), input ?? {});
   const me = ctx.actor.id;
   return ctx.db.tx(async (q) => {
+    const photo = await requireClockInPhoto(q, me, d.photoDraftKey, ctx.now);
     await q.query("select id from employee where id = $1 for update", [me]);
     const cal = await employeeCalendar(q, me);
     const today = localDateOf(ctx.now, cal.timezone);
@@ -76,7 +96,8 @@ export async function clockIn(ctx: Ctx, input: unknown) {
     const [existing] = await q.query<ShiftRow>(`${SHIFT_SELECT} where employee_id = $1 and work_date = $2 for update`, [me, today]);
     if (existing) {
       // Same-day reopening keeps the original anchor: no second eight-hour allowance.
-      await q.query("insert into attendance_event(shift_id, kind, effective_at, actor_id, note, shift_revision) values ($1,'resume',$2,$3,$4,$5)", [existing.id, iso(ctx.now), me, d.note ?? null, existing.revision]);
+      const [ev] = await q.query<{ id: string }>("insert into attendance_event(shift_id, kind, effective_at, actor_id, note, shift_revision) values ($1,'resume',$2,$3,$4,$5) returning id", [existing.id, iso(ctx.now), me, d.note ?? null, existing.revision]);
+      await linkClockInPhoto(q, photo, ev!.id, me);
       await scheduleJobs(q, existing);
       await audit(q, { actorId: me, action: "resume_shift", objectType: "shift_instance", objectId: existing.id, correlationId: ctx.correlationId });
       return { shiftId: existing.id, resumed: true, t0: Number(existing.t0) };
@@ -85,7 +106,8 @@ export async function clockIn(ctx: Ctx, input: unknown) {
     const [s] = await q.query<{ id: string }>(
       `insert into shift_instance(employee_id, work_date, timezone, t0, warn_at, ot_at, visit_id) values ($1,$2,$3,$4,$5,$6,$7) returning id`,
       [me, today, cal.timezone, iso(ctx.now), iso(warnAt(ctx.now)), iso(overtimeAt(ctx.now)), visitId]);
-    await q.query("insert into attendance_event(shift_id, kind, effective_at, actor_id, note, shift_revision) values ($1,'clock_in',$2,$3,$4,1)", [s!.id, iso(ctx.now), me, d.note ?? null]);
+    const [ev] = await q.query<{ id: string }>("insert into attendance_event(shift_id, kind, effective_at, actor_id, note, shift_revision) values ($1,'clock_in',$2,$3,$4,1) returning id", [s!.id, iso(ctx.now), me, d.note ?? null]);
+    await linkClockInPhoto(q, photo, ev!.id, me);
     await scheduleJobs(q, { id: s!.id, revision: 1, warn_at: warnAt(ctx.now), ot_at: overtimeAt(ctx.now) });
     await audit(q, { actorId: me, action: "clock_in", objectType: "shift_instance", objectId: s!.id, correlationId: ctx.correlationId });
     return { shiftId: s!.id, resumed: false, t0: ctx.now };

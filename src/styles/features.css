@@ -209,3 +209,15 @@ body:has(.nav-pending.on)::before { content: ""; position: fixed; top: 0; left: 
 .handover-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .handover-range input { width: auto; min-height: 40px; }
 .handover-range a[aria-current] { border-color: var(--ink); font-weight: 700; }
+
+/* Idle reason picker under the activity switch */
+.idle-form { display: grid; gap: 10px; margin-top: 10px; padding: 12px; background: var(--plate-2); border-radius: var(--radius); }
+
+/* Clock-in selfie: square-ish mirrored preview, big thumb buttons. */
+.clockin-cam { display: grid; gap: 10px; }
+.clockin-frame { position: relative; height: min(42dvh, 380px); width: min(100%, 300px); margin: 0 auto; border-radius: var(--radius); overflow: hidden; background: var(--chrome); display: grid; place-items: center; color: var(--chrome-ink); }
+.clockin-frame video, .clockin-frame img { width: 100%; height: 100%; object-fit: cover; }
+.clockin-frame video { transform: scaleX(-1); }
+.clockin-hint { position: absolute; inset: auto 0 12px; text-align: center; font-size: 13px; }
+.clockin-actions { display: grid; gap: 8px; }
+@media (min-width: 760px) { .clockin-actions { grid-template-columns: 1fr auto auto; } }

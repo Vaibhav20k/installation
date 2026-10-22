@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Coffee, Hammer, Pause, SignIn, SignOut, Truck } from "@phosphor-icons/react";
 import { useAction } from "@/components/ui/useAction";
+import { ClockInCamera } from "./ClockInCamera";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { addAttendanceNote, clockIn, clockOut, requestAttendanceCorrection, setAttendanceActivity, setOvertimeReason } from "@/app/actions";
@@ -23,6 +24,10 @@ const ACTIVITIES = [
   { id: "idle", label: "Idle", icon: Pause },
   { id: "travel", label: "Travel", icon: Truck },
 ] as const;
+/** Common reasons work stops on site; "Other" asks for the specific reason. */
+const IDLE_REASONS = ["Power cut", "No site access / keys", "Waiting for material", "Waiting for another trade (plumber, electrician, stone)",
+  "Tool or equipment problem", "Waiting for customer decision", "Weather", "Lift or society restriction"];
+
 const OT_REASONS: Array<[string, string]> = [["catch_up", "Finishing today's original target"], ["future_task", "Tomorrow's task brought forward"],
   ["additional_work", "Approved additional customer work"], ["external_delay", "Site, material or equipment delay"], ["other", "Other reason"]];
 
@@ -75,12 +80,15 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
   const router = useRouter();
   const offset = useMemo(() => serverNow - Date.now(), [serverNow]);
   const fmt = useClock(shift?.timezone ?? "Asia/Kolkata");
-  const inAction = useAction(clockIn);
   const outAction = useAction(clockOut);
   const act = useAction(setAttendanceActivity);
   const reason = useAction(setOvertimeReason);
   const [idleNote, setIdleNote] = useState("");
+  const [idleChoice, setIdleChoice] = useState("");
   const [askIdle, setAskIdle] = useState(false);
+  const [camera, setCamera] = useState(false);
+  const [clockErr, setClockErr] = useState<string | null>(null);
+  const [clockedIn, setClockedIn] = useState(false);
 
   // One refresh at each boundary so the server-recorded reminder / overtime state appears without a reload.
   const refreshed = useRef(new Set<number>());
@@ -128,10 +136,20 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
         </div>
       )}
       {shift?.open && askIdle && (
-        <form className="row" style={{ marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); act.run({ shiftId: shift.shiftId, activity: "idle", note: idleNote }); setAskIdle(false); }}>
-          <div className="field" style={{ flex: 1, minWidth: 200 }}><label htmlFor="idle-n">What is holding the work up?</label>
-            <input id="idle-n" value={idleNote} onChange={(e) => setIdleNote(e.target.value)} required minLength={3} placeholder="Power cut, no site access, waiting for material…" enterKeyHint="done" /></div>
-          <button type="submit" className="primary" style={{ alignSelf: "flex-end" }}>Mark idle</button>
+        <form className="idle-form" onSubmit={(e) => { e.preventDefault();
+          act.run({ shiftId: shift.shiftId, activity: "idle", note: idleChoice === "other" ? `Other: ${idleNote.trim()}` : idleChoice });
+          setAskIdle(false); setIdleChoice(""); setIdleNote(""); }}>
+          <div className="field"><label htmlFor="idle-r">What is holding the work up?</label>
+            <select id="idle-r" value={idleChoice} onChange={(e) => setIdleChoice(e.target.value)} required>
+              <option value="" disabled>Choose a reason</option>
+              {IDLE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              <option value="other">Other (type the reason)</option>
+            </select></div>
+          {idleChoice === "other" && (
+            <div className="field"><label htmlFor="idle-n">Specific reason</label>
+              <input id="idle-n" value={idleNote} onChange={(e) => setIdleNote(e.target.value)} required minLength={3} maxLength={200} autoFocus enterKeyHint="done" placeholder="Describe what is stopping the work" /></div>
+          )}
+          <div className="row"><button type="submit" className="primary" disabled={!idleChoice}>Mark idle</button><button type="button" onClick={() => setAskIdle(false)}>Cancel</button></div>
         </form>
       )}
       <ResultNotice result={act.result && !act.result.ok ? act.result : null} />
@@ -150,17 +168,21 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
       )}
 
       <div className="shift-primary">
-        {!shift?.open ? (
-          <button type="button" className="primary clock-btn" disabled={inAction.pending} aria-busy={inAction.pending} onClick={() => inAction.run({})}>
+        {!shift?.open ? (camera ? (
+          <ClockInCamera label={shift ? "Clock in again (same shift)" : "Clock in"} onCancel={() => setCamera(false)}
+            onClockIn={async (photoDraftKey) => { const r = await clockIn({ photoDraftKey }); if (r.ok) { setCamera(false); setClockedIn(true); router.refresh(); } setClockErr(r.ok ? null : r.message); return r.ok; }} />
+        ) : (
+          <button type="button" className="primary clock-btn" onClick={() => { setClockErr(null); setCamera(true); }}>
             <SignIn size={20} weight="bold" aria-hidden /> {shift ? "Clock in again (same shift)" : "Clock in"}
           </button>
-        ) : (
+        )) : (
           <button type="button" className="clock-btn clock-out" disabled={outAction.pending} aria-busy={outAction.pending} onClick={() => outAction.run({ shiftId: shift.shiftId })}>
             <SignOut size={20} weight="bold" aria-hidden /> Clock out
           </button>
         )}
       </div>
-      <ResultNotice result={inAction.result} successText="Clocked in. Your 8-hour regular session has started." />
+      {clockErr && <p className="notice" data-tone="warn" role="alert">{clockErr}</p>}
+      {clockedIn && shift?.open && <p className="notice" data-tone="ok" role="status">Clocked in with your photo. Your 8-hour regular session has started.</p>}
       <ResultNotice result={outAction.result} successText={outAction.result?.ok ? clockOutText(outAction.result.data as ClockOutData) : undefined} />
 
       {shift && <AttendanceExtras shift={shift} />}

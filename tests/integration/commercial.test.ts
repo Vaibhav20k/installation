@@ -6,7 +6,7 @@ import { commercialSummary, decideAdditionalWork, pendingAdditionalWork, request
 import { clockIn, clockOut, setOvertimeReason } from "@/server/services/attendance";
 import { reviewEligibility } from "@/server/services/time";
 import { AppError } from "@/server/errors";
-import { actor, freshDb, idOf } from "./helpers";
+import { actor, clockInPhoto, freshDb, idOf } from "./helpers";
 
 const NOW = Date.parse("2026-10-16T06:00:00Z");
 const at = (hhmm: string, day = "2026-10-16") => Date.parse(`${day}T${hhmm}+05:30`);
@@ -45,7 +45,7 @@ describe("additional work and charges (requirements 8, 9; scenario 58)", () => {
 describe("overtime period and eligibility for attendance time (scenario 51)", () => {
   it("work after clock-in + 8 h is outside schedule even inside the old 10:00–19:00 calendar; future work brought forward can be eligible", async () => {
     const [w] = await db.query<{ id: string }>("select id from employee where business_id = 'EMP-033'");
-    await clockIn(await asId(w!.id, at("08:00")), {});
+    await clockIn(await asId(w!.id, at("08:00")), { photoDraftKey: await clockInPhoto(db, w!.id, at("08:00")) });
     const [s] = await db.query<{ id: string }>("select id from shift_instance where employee_id = $1", [w!.id]);
     await setOvertimeReason(await asId(w!.id, at("16:30")), { shiftId: s!.id, reason: "future_task" });
     await clockOut(await asId(w!.id, at("18:00")), { shiftId: s!.id });
