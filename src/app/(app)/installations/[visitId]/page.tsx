@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { CaretLeft, MapPin } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
-import { installationDetail } from "@/server/queries/installations";
+import { installationDetail, teamCandidates } from "@/server/queries/installations";
 import { dayDiff, localDateOf, weekday } from "@/lib/dates";
 import { TZ, qty } from "@/lib/format";
 import { customerText, shortDate } from "@/domain/install-schedule";
 import { Badge } from "@/components/ui/Badge";
 import { Empty, Notice } from "@/components/ui/Notice";
 import { ApplySchedule, CustomerCopy, DayControls } from "@/components/install/ScheduleControls";
+import { TeamManager } from "@/components/install/TeamManager";
 
 export const metadata = { title: "Installation progress" };
 
@@ -26,6 +27,7 @@ export default async function InstallationDetail({ params }: { params: Promise<{
   const start = r.schedule_start ?? r.planned_start, end = r.schedule_end ?? r.planned_end;
   const customerName = r.customer_name.replace(/^Demo Customer /, "");
   const editable = !["completed", "closed", "cancelled"].includes(r.exec_status);
+  const canManage = (actor.role === "manager" || actor.role === "admin") && editable;
   const started = days.some((d) => d.status !== "planned");
   const outside = !!(r.schedule_end && r.planned_end && r.schedule_end > r.planned_end) || !!(r.schedule_start && r.planned_start && r.schedule_start < r.planned_start);
   return (
@@ -54,18 +56,9 @@ export default async function InstallationDetail({ params }: { params: Promise<{
 
       <div className="grid cols-2">
         <section className="plate" aria-labelledby="h-team">
-          <div className="plate-head"><h2 id="h-team" style={{ margin: 0 }}>Team</h2><span className="code-tag">{r.team.length} people</span></div>
-          {r.team.length === 0 ? <Empty>No one is assigned yet. <Link href={`/visits/${r.visit_id}?step=team`}>Assign the team</Link>.</Empty> : (
-            <ul className="callouts">
-              {r.team.map((m) => (
-                <li key={m.id}><Link href={`/people/${m.id}`}>
-                  <span className="monogram" aria-hidden>{m.name.split(/\s+/).map((x) => x[0]).join("").slice(0, 2)}</span>
-                  <span><span className="callout-title">{m.name} <span className="code">{m.business_id}</span></span><span className="callout-meta">{m.job_role.replace(/_/g, " ")}</span></span>
-                  <Badge state={m.state} />
-                </Link></li>
-              ))}
-            </ul>
-          )}
+          <div className="plate-head"><h2 id="h-team" style={{ margin: 0 }}>Team</h2><span className="code-tag">{r.team.filter((m) => Date.parse(m.until) > Date.now()).length} people</span></div>
+          <TeamManager visitId={r.visit_id} team={r.team} candidates={canManage ? await teamCandidates(db, r.visit_id, Date.now()) : []} canManage={canManage}
+            booked={["scheduled", "in_progress", "on_hold"].includes(r.exec_status)} />
         </section>
 
         <section className="plate" aria-labelledby="h-work">

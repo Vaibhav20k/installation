@@ -168,6 +168,7 @@ export async function addEffortDriver(input: unknown) { return run(site.addEffor
 export async function setSiteRestriction(input: unknown) { return run(site.setSiteRestriction, input, S); }
 export async function saveAppliance(input: unknown) { return run(site.saveAppliance, input, S); }
 export async function exceptAppliance(input: unknown) { return run(site.exceptAppliance, input, S); }
+export async function addCrewMember(input: unknown) { return run(site.addCrewMember, input, [...S, "/my-day", "/my-tasks"]); }
 export async function substitute(input: unknown) { return run(site.substitute, input, [...S, "/my-day", "/my-tasks"]); }
 
 // Additional work and installation charges

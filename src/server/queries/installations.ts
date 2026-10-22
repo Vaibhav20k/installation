@@ -7,7 +7,7 @@ import type { Actor } from "../auth/permissions";
 import { notFound } from "../errors";
 import { projectFilter } from "./common";
 
-export interface TeamMember { id: string; business_id: string; name: string; job_role: string; state: string }
+export interface TeamMember { id: string; business_id: string; name: string; job_role: string; state: string; from: string; until: string }
 export interface InstallRow {
   visit_id: string; visit: string; exec_status: string; visit_type: string;
   project_id: string; project: string; project_name: string; city: string; site_address: string;
@@ -37,7 +37,7 @@ const ROW_SQL = (where: string) => `
     (select count(*)::int from visit_schedule_day where visit_id = v.id and kind = 'work' and status <> 'done' and day_date < $1::date) behind_days,
     (select coalesce(step_name, off_reason) from visit_schedule_day where visit_id = v.id and day_date = $1::date) today_step,
     (select kind from visit_schedule_day where visit_id = v.id and day_date = $1::date) today_kind,
-    coalesce((select json_agg(json_build_object('id', e.id, 'business_id', e.business_id, 'name', e.name, 'job_role', e.job_role, 'state', r.state) order by e.job_role = 'site_supervisor' desc, e.business_id)
+    coalesce((select json_agg(json_build_object('id', e.id, 'business_id', e.business_id, 'name', e.name, 'job_role', e.job_role, 'state', r.state, 'from', lower(r.span), 'until', upper(r.span)) order by upper(r.span) desc, e.job_role = 'site_supervisor' desc, e.business_id)
       from reservation r join employee e on e.id = r.employee_id where r.visit_id = v.id and r.state in ('proposed','held','confirmed')), '[]') team,
     coalesce((select sum(vt.scoped_quantity)::float from visit_task vt where vt.visit_id = v.id and vt.status = 'active'), 0) scoped,
     coalesce((select sum(pe.quantity_delta)::float from progress_event pe join visit_task vt on vt.id = pe.visit_task_id
@@ -48,7 +48,9 @@ const ROW_SQL = (where: string) => `
 export async function installationsBoard(q: Queryable, actor: Actor, today: string): Promise<InstallRow[]> {
   const f = projectFilter(actor, "p", 2);
   return q.query<InstallRow>(`${ROW_SQL(`v.exec_status in ('unscheduled','scheduled','in_progress','on_hold') and ${f.sql}`)}
-    order by case v.exec_status when 'in_progress' then 0 when 'on_hold' then 1 when 'scheduled' then 2 else 3 end, coalesce(v.planned_start, '9999-12-31'), v.business_id`, [today, ...f.params]);
+    order by case v.exec_status when 'in_progress' then 0 when 'on_hold' then 1 when 'scheduled' then 2 else 3 end, coalesce(v.planned_start, '9999-12-31'), v.business_id`, [today, ...f.params])
+    // The board shows the people on the job now; replaced members stay in the visit's own history.
+    .then((rows) => rows.map((r) => ({ ...r, team: r.team.filter((m) => Date.parse(m.until) > Date.now()) })));
 }
 
 export interface ScheduleDayRow { id: string; day_date: string; kind: "work" | "off"; step_no: number | null; step_name: string | null; off_reason: string | null; status: string; note: string | null; updated_by: string | null }
@@ -68,4 +70,28 @@ export async function installationDetail(q: Queryable, actor: Actor, visitId: st
     q.query<{ code: string; name: string; work_days: number }>("select code, name, (select sum((s->>'days')::int) from jsonb_array_elements(steps) s)::int work_days from schedule_template order by name"),
   ]);
   return { row, days, tasks, templates };
+}
+
+export interface Candidate { id: string; business_id: string; name: string; job_role: string; skills: string; busy: string | null }
+
+/** People who could join or replace someone on this visit, with why anyone is unavailable for its remaining dates. */
+export async function teamCandidates(q: Queryable, visitId: string, now: number): Promise<Candidate[]> {
+  const [v] = await q.query<{ lo: number; hi: number }>(
+    `select coalesce(min(lower(r.span)), v.planned_start::timestamptz) lo, coalesce(max(upper(r.span)), (v.planned_end + 1)::timestamptz) hi
+     from visit v left join reservation r on r.visit_id = v.id and r.state in ('proposed','held','confirmed') where v.id = $1 group by v.id`, [visitId]);
+  if (!v) return [];
+  const from = new Date(Math.max(Number(v.lo), now)).toISOString(), to = new Date(Number(v.hi)).toISOString();
+  return q.query<Candidate>(
+    `select * from (select e.id, e.business_id, e.name, e.job_role,
+       coalesce((select string_agg(s.code || ' ' || (array['L','M','H'])[es.level] || case when es.verified then '' else '?' end, ', ' order by s.code)
+         from employee_skill es join skill s on s.id = es.skill_id where es.employee_id = e.id), '') skills,
+       case
+         when exists (select 1 from leave_record l where l.employee_id = e.id and l.status = 'approved' and l.span && tstzrange($2::timestamptz,$3::timestamptz)) then 'on approved leave'
+         when exists (select 1 from reservation r join visit ov on ov.id = r.visit_id where r.employee_id = e.id and r.visit_id <> $1 and r.state in ('held','confirmed') and r.span && tstzrange($2::timestamptz,$3::timestamptz))
+           then 'booked on ' || (select ov.business_id from reservation r join visit ov on ov.id = r.visit_id where r.employee_id = e.id and r.visit_id <> $1 and r.state in ('held','confirmed') and r.span && tstzrange($2::timestamptz,$3::timestamptz) limit 1)
+         else null end busy
+     from employee e
+     where e.active and e.permission_role in ('employee','supervisor')
+       and not exists (select 1 from reservation r where r.visit_id = $1 and r.employee_id = e.id and r.state in ('proposed','held','confirmed') and upper(r.span) > $2::timestamptz)
+     ) c order by c.busy is not null, c.job_role, c.business_id`, [visitId, from, to]);
 }

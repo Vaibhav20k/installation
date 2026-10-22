@@ -8,7 +8,7 @@ import { audit } from "../audit";
 import { requireProjectScope, requireRole } from "../auth/permissions";
 import { conflict, validation } from "../errors";
 import { zonedToUtc } from "@/lib/dates";
-import { loadVisit } from "./plan-support";
+import { loadVisit, visitSpan } from "./plan-support";
 import { visitCoverage } from "./booking";
 import { bumpVersion, iso, one, parse, zDate, zId, zQty, zTime, zVersion, type Ctx } from "./context";
 
@@ -127,17 +127,25 @@ export async function substitute(ctx: Ctx, input: unknown) {
     const v = await loadVisit(q, d.visitId, true);
     await requireProjectScope(q, ctx.actor, v.project_id);
     if (!["scheduled", "in_progress", "on_hold"].includes(v.exec_status)) throw conflict(`Substitution applies to booked visits (this one is ${v.exec_status}).`);
-    const at = zonedToUtc(d.date, d.time, v.timezone);
+    const requested = zonedToUtc(d.date, d.time, v.timezone);
     const out = await one<{ id: string; role: string; state: string; lo: number; hi: number }>(q,
-      `select id, role, state, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and employee_id = $2 and state in ('held','confirmed') for update`, [d.visitId, d.outgoingId], "Outgoing reservation");
-    if (!(at > Number(out.lo) && at < Number(out.hi))) throw validation("The effective time must fall inside the outgoing person's booking (after its start, before its end).");
+      `select id, role, state, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and employee_id = $2 and state in ('held','confirmed')
+       order by upper(span) desc limit 1 for update`, [d.visitId, d.outgoingId], "Outgoing reservation");
+    if (requested >= Number(out.hi)) throw validation("That time is after the outgoing person's booking ends; there is nothing left to replace.");
+    // Before the booking starts (someone cannot join at all), the replacement takes the whole booking.
+    const whole = requested <= Number(out.lo);
+    const at = whole ? Number(out.lo) : requested;
     const [inc] = await q.query<{ active: boolean }>("select active from employee where id = $1", [d.incomingId]);
     if (!inc?.active) throw validation("The incoming employee is not active.");
     const leave = await q.query("select 1 from leave_record where employee_id = $1 and status = 'approved' and span && tstzrange($2::timestamptz,$3::timestamptz) limit 1", [d.incomingId, iso(at), iso(Number(out.hi))]);
     if (leave.length) throw conflict("The incoming employee has approved leave during the remaining booking.");
-    await q.query("update reservation set span = tstzrange(lower(span), $2::timestamptz), version = version + 1 where id = $1", [out.id, iso(at)]);
-    await q.query("update reservation_activity set span = tstzrange(lower(span), least(upper(span), $2::timestamptz)) where reservation_id = $1 and lower(span) < $2::timestamptz", [out.id, iso(at)]);
-    await q.query("delete from reservation_activity where reservation_id = $1 and lower(span) >= $2::timestamptz", [out.id, iso(at)]);
+    if (whole) {
+      await q.query("update reservation set state = 'released', version = version + 1 where id = $1", [out.id]);
+    } else {
+      await q.query("update reservation set span = tstzrange(lower(span), $2::timestamptz), version = version + 1 where id = $1", [out.id, iso(at)]);
+      await q.query("update reservation_activity set span = tstzrange(lower(span), least(upper(span), $2::timestamptz)) where reservation_id = $1 and lower(span) < $2::timestamptz", [out.id, iso(at)]);
+      await q.query("delete from reservation_activity where reservation_id = $1 and lower(span) >= $2::timestamptz", [out.id, iso(at)]);
+    }
     const [r] = await q.query<{ id: string }>("insert into reservation(visit_id, employee_id, role, span, state, created_by) values ($1,$2,$3,tstzrange($4::timestamptz,$5::timestamptz),$6,$7) returning id",
       [d.visitId, d.incomingId, out.role, iso(at), iso(Number(out.hi)), out.state, ctx.actor.id]);
     await q.query("insert into reservation_activity(reservation_id, kind, span) values ($1,'work',tstzrange($2::timestamptz,$3::timestamptz))", [r!.id, iso(at), iso(Number(out.hi))]);
@@ -146,6 +154,41 @@ export async function substitute(ctx: Ctx, input: unknown) {
     const [s] = await q.query<{ id: string }>(`insert into substitution(visit_id, outgoing_employee_id, incoming_employee_id, effective_at, reason, outgoing_reservation_id, incoming_reservation_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`, [d.visitId, d.outgoingId, d.incomingId, iso(at), d.reason, out.id, r!.id, ctx.actor.id]);
     await audit(q, { actorId: ctx.actor.id, action: "substitute", objectType: "visit", objectId: d.visitId, after: { outgoing: d.outgoingId, incoming: d.incomingId, effective: iso(at) }, reason: d.reason, correlationId: ctx.correlationId });
-    return { id: s!.id, effectiveAt: at };
+    return { id: s!.id, effectiveAt: at, wholeBooking: whole };
+  });
+}
+
+/**
+ * Add a crew member to a visit (plans needing more than the planned headcount). Booked visits get a booking of
+ * the same state from the chosen moment to the end, through the same overlap and leave checks; the visit's team
+ * size grows to match. Unscheduled visits get a proposed (non-blocking) booking for the planned dates.
+ */
+export async function addCrewMember(ctx: Ctx, input: unknown) {
+  const d = parse(z.object({ visitId: zId, employeeId: zId, date: zDate, time: zTime, reason: z.string().min(3).max(300) }), input);
+  requireRole(ctx.actor, "manager", "adding crew");
+  return ctx.db.tx(async (q) => {
+    const v = await loadVisit(q, d.visitId, true);
+    await requireProjectScope(q, ctx.actor, v.project_id);
+    if (["completed", "closed", "cancelled"].includes(v.exec_status)) throw conflict(`This visit is ${v.exec_status}.`);
+    const span = visitSpan(v);
+    if (!span) throw validation("Set the visit's planned dates first.");
+    const [emp] = await q.query<{ active: boolean; job_role: string }>("select active, job_role from employee where id = $1", [d.employeeId]);
+    if (!emp?.active) throw validation("That employee is not active.");
+    const team = await q.query<{ employee_id: string; state: string }>("select employee_id, state from reservation where visit_id = $1 and state in ('proposed','held','confirmed') and upper(span) > $2::timestamptz", [d.visitId, iso(ctx.now)]);
+    if (team.some((t) => t.employee_id === d.employeeId)) throw conflict("That person is already on this visit.");
+    const booked = ["scheduled", "in_progress", "on_hold"].includes(v.exec_status);
+    const start = booked ? Math.max(zonedToUtc(d.date, d.time, v.timezone), span.start) : span.start;
+    if (start >= span.end) throw validation("That time is after the visit ends.");
+    const leave = await q.query("select 1 from leave_record where employee_id = $1 and status = 'approved' and span && tstzrange($2::timestamptz,$3::timestamptz) limit 1", [d.employeeId, iso(start), iso(span.end)]);
+    if (leave.length) throw conflict("That employee has approved leave during the visit.");
+    const state = booked ? (team.find((t) => t.state === "confirmed") ? "confirmed" : "held") : "proposed";
+    const [r] = await q.query<{ id: string }>(`insert into reservation(visit_id, employee_id, role, span, state, hold_expires_at, created_by) values ($1,$2,$3,tstzrange($4::timestamptz,$5::timestamptz),$6,$7,$8) returning id`,
+      [d.visitId, d.employeeId, emp.job_role, iso(start), iso(span.end), state, state === "held" ? iso(ctx.now + 48 * 3_600_000) : null, ctx.actor.id]);
+    if (state === "confirmed") await q.query("insert into reservation_activity(reservation_id, kind, span) values ($1,'work',tstzrange($2::timestamptz,$3::timestamptz))", [r!.id, iso(start), iso(span.end)]);
+    const size = team.length + 1;
+    if (size > 12) throw validation("A visit team can have at most 12 people.");
+    await q.query("update visit set team_size = greatest(team_size, $2), version = version + 1, updated_at = now() where id = $1", [d.visitId, size]);
+    await audit(q, { actorId: ctx.actor.id, action: "add_crew", objectType: "visit", objectId: d.visitId, after: { employee: d.employeeId, from: iso(start), state }, reason: d.reason, correlationId: ctx.correlationId });
+    return { id: r!.id, state, teamSize: Math.max(v.team_size, size) };
   });
 }

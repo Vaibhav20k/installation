@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/server/db/client";
 import { makeCtx } from "@/server/services/context";
-import { addContact, addEffortDriver, exceptAppliance, saveAppliance, setQuantitySnapshot, substitute } from "@/server/services/site";
+import { addContact, addCrewMember, addEffortDriver, exceptAppliance, saveAppliance, setQuantitySnapshot, substitute } from "@/server/services/site";
 import { readinessGate } from "@/server/services/clearance";
+import { installationDetail, teamCandidates } from "@/server/queries/installations";
 import { AppError } from "@/server/errors";
 import { actor, freshDb, idOf } from "./helpers";
 
@@ -74,5 +75,46 @@ describe("substitution (scenario 61)", () => {
     expect(Number(n.hi)).toBe(Number(out.hi));
     const progress = await db.query("select 1 from progress_event pe join visit_task vt on vt.id = pe.visit_task_id where vt.visit_id = $1", [v]);
     expect(progress.length).toBeGreaterThan(0);
+  });
+});
+
+describe("team changes from the installation page (user request, 23 Oct)", () => {
+  const free = async (visitBid: string, from: string, to: string) => (await db.query<{ id: string }>(`select e.id from employee e
+    where e.active and e.permission_role = 'employee' and not exists (select 1 from reservation r join visit v on v.id = r.visit_id where r.employee_id = e.id and (v.business_id = $1 or (r.state in ('held','confirmed') and r.span && tstzrange($2::timestamptz,$3::timestamptz))))
+      and not exists (select 1 from leave_record l where l.employee_id = e.id) order by e.business_id limit 2`, [visitBid, from, to])).map((r) => r.id);
+
+  it("adds a fourth person to a booked visit and grows the team size; only managers can", async () => {
+    const v = await idOf(db, "visit", "VIS-006");
+    const [extra] = await free("VIS-006", "2026-10-16", "2026-10-30");
+    expect(await kind(addCrewMember(await as("EMP-008"), { visitId: v, employeeId: extra!, date: "2026-10-16", time: "12:00", reason: "Island needs a fourth person" }))).toBe("forbidden");
+    const r = await addCrewMember(await as("EMP-001"), { visitId: v, employeeId: extra!, date: "2026-10-16", time: "12:00", reason: "Island needs a fourth person" });
+    expect(r.state).toBe("confirmed");
+    expect(r.teamSize).toBeGreaterThanOrEqual(4);
+    expect(await kind(addCrewMember(await as("EMP-001"), { visitId: v, employeeId: extra!, date: "2026-10-16", time: "12:00", reason: "Again" }))).toBe("conflict");
+    const [busy] = await db.query<{ employee_id: string }>("select r.employee_id from reservation r join visit v on v.id = r.visit_id where v.business_id = 'VIS-005' and r.state = 'confirmed' limit 1");
+    expect(await kind(addCrewMember(await as("EMP-001"), { visitId: v, employeeId: busy!.employee_id, date: "2026-10-16", time: "12:00", reason: "Overlap" }))).toBe("conflict");
+  });
+
+  it("lists replacement candidates with the reason anyone is unavailable, and shows member periods", async () => {
+    const v = await idOf(db, "visit", "VIS-006");
+    const c = await teamCandidates(db, v, NOW);
+    expect(c.length).toBeGreaterThan(5);
+    const firstBusy = c.findIndex((x) => x.busy);
+    expect(firstBusy === -1 || c.slice(firstBusy).every((x) => x.busy)).toBe(true);
+    expect(c.some((x) => x.busy?.startsWith("booked on VIS-005"))).toBe(true);
+    const d = await installationDetail(db, await actor(db, "EMP-001"), v, "2026-10-16");
+    expect(d.row.team.every((m) => typeof m.from === "string" && typeof m.until === "string")).toBe(true);
+  });
+
+  it("replacing someone before their booking starts hands over the whole booking", async () => {
+    const v = await idOf(db, "visit", "VIS-005");
+    const [out] = await db.query<{ employee_id: string; lo: number; hi: number }>("select employee_id, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and state = 'confirmed' order by employee_id limit 1", [v]);
+    const [inc] = await free("VIS-005", "2026-10-20", "2026-10-25");
+    const r = await substitute(await as("EMP-001"), { visitId: v, outgoingId: out!.employee_id, incomingId: inc!, date: "2026-10-16", time: "09:00", reason: "Sick: cannot join this visit" });
+    expect(r.wholeBooking).toBe(true);
+    const rows = await db.query<{ employee_id: string; state: string; lo: number; hi: number }>("select employee_id, state, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and employee_id = any($2::uuid[])", [v, [out!.employee_id, inc!]]);
+    expect(rows.find((x) => x.employee_id === out!.employee_id)!.state).toBe("released");
+    const n = rows.find((x) => x.employee_id === inc!)!;
+    expect([Number(n.lo), Number(n.hi), n.state]).toEqual([Number(out!.lo), Number(out!.hi), "confirmed"]);
   });
 });
