@@ -20,11 +20,15 @@ export default async function InstallationsPage({ searchParams }: { searchParams
   const rows = q ? all.filter((r) => [r.customer, r.customer_name, r.project, r.project_name, r.visit, ...r.orders.map((o) => o.business_id)].some((s) => s.toLowerCase().includes(q))) : all;
   const onSite = rows.filter((r) => r.exec_status === "in_progress" || r.exec_status === "on_hold");
   const upcoming = rows.filter((r) => !onSite.includes(r));
-  const weekEnd = addDays(today, 7);
+  // Handover window: an adjustable report filter; "next 7 days" is only the starting preset, not a deadline.
+  const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const hFrom = isDate(sp.hfrom) ? sp.hfrom! : today;
+  const hTo = isDate(sp.hto) && sp.hto! >= hFrom ? sp.hto! : addDays(hFrom, Number(sp.hdays) > 0 && Number(sp.hdays) <= 366 ? Number(sp.hdays) : 7);
+  const handovers = all.filter((r) => { const end = r.schedule_end ?? r.planned_end; return !!end && end >= hFrom && end <= hTo; });
   const figures = [
     { label: "On site now", value: all.filter((r) => r.exec_status === "in_progress").length, tone: undefined },
     { label: "Behind the customer schedule", value: all.filter((r) => r.behind_days > 0).length, tone: all.some((r) => r.behind_days > 0) ? "bad" : undefined },
-    { label: "Handovers in the next 7 days", value: all.filter((r) => { const end = r.schedule_end ?? r.planned_end; return !!end && end >= today && end <= weekEnd; }).length, tone: undefined },
+    { label: `Handovers ${shortDate(hFrom)} to ${shortDate(hTo)}`, value: handovers.length, tone: undefined },
     { label: "Crew on site today", value: new Set(all.filter((r) => r.exec_status === "in_progress" && r.today_kind !== "off").flatMap((r) => r.team.filter((m) => m.state === "confirmed").map((m) => m.id))).size, tone: undefined },
   ];
   return (
@@ -46,6 +50,17 @@ export default async function InstallationsPage({ searchParams }: { searchParams
             ))}
           </ul>
         </section>
+      )}
+
+      {!q && (
+        <form className="handover-range" aria-label="Handover window">
+          <span className="small muted">Handover window:</span>
+          {[7, 14, 30].map((n) => <a key={n} className="button" href={`/installations?hdays=${n}`} aria-current={!sp.hfrom && !sp.hto && (Number(sp.hdays) || 7) === n ? "true" : undefined}>Next {n} days</a>)}
+          <label className="sr-only" htmlFor="hf">From</label><input id="hf" type="date" name="hfrom" defaultValue={hFrom} />
+          <label className="sr-only" htmlFor="ht">To</label><input id="ht" type="date" name="hto" defaultValue={hTo} />
+          <button type="submit">Apply</button>
+          {handovers.length > 0 && <span className="small">{handovers.map((h) => `${h.customer} ${h.project}`).join(", ")}</span>}
+        </form>
       )}
 
       <Section title="On site" rows={onSite} today={today} empty={q ? "No site matches that search." : "Nobody is on site right now."} />

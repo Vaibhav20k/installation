@@ -1,0 +1,211 @@
+/* Feature styles: installations board, theme and person switches, attendance, evidence, notifications. Tokens live in globals.css. */
+
+/* Installations board: one plate per open site, the whole plate is the tap target. */
+.search-bar { display: flex; align-items: center; gap: 10px; background: var(--plate); border: 1px solid var(--rule-strong); border-radius: var(--radius); padding: 0 12px; color: var(--ink-3); }
+.search-bar:focus-within { border-color: var(--ink); }
+.search-bar input { border: 0; background: transparent; padding: 10px 0; min-height: 46px; box-shadow: none; }
+.search-bar input:focus { box-shadow: none; }
+.section-label { font: 700 12px/1 var(--font-code); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-2); margin: 8px 0 0; display: flex; gap: 8px; }
+.section-label .code { color: var(--ink-3); }
+.install-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+@media (min-width: 1100px) { .install-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.site-card { display: block; text-decoration: none; color: var(--ink); height: 100%; transition: transform 120ms var(--ease-press), box-shadow 160ms var(--ease-out); }
+.site-card:active { transform: scale(0.99); }
+@media (hover: hover) and (pointer: fine) { .site-card:hover { box-shadow: var(--shadow-lift); } }
+.site-card h3.plate-title { font-size: 20px; }
+.site-facts { margin: 12px 0 0; display: grid; gap: 0; }
+.site-facts > div { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); align-items: baseline; }
+.site-facts dt { font: 600 10.5px/1.4 var(--font-code); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+.site-facts dd { margin: 0; font-size: 14px; }
+.team-line svg { vertical-align: -3px; color: var(--ink-3); }
+.site-progress { display: grid; grid-template-columns: 1fr auto auto 18px; gap: 10px; align-items: center; padding-top: 10px; border-top: 1px solid var(--rule); }
+.site-progress .meter { margin-top: 0; }
+.site-progress .code { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Installation detail: progress hero, schedule rail, customer copy. */
+.back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--ink-2); text-decoration: none; min-height: 44px; }
+.progress-hero { display: grid; gap: 10px; margin: 16px 0 6px; }
+.progress-hero > div:first-child { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.progress-figure { font: 700 44px/1 var(--font-code); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.progress-figure small { font-size: 20px; color: var(--ink-3); margin-left: 2px; }
+.meter-lg { height: 8px; border-radius: 2px; margin-top: 0; }
+.meter-lg span { border-radius: 2px; }
+.spec-text { font-weight: 600; font-size: 14px; }
+.spec-text[data-tone="bad"] { color: var(--signal); }
+.schedule { list-style: none; margin: 0 0 12px; padding: 0; }
+.sched-day { display: grid; grid-template-columns: 64px 1fr; gap: 4px 12px; padding: 12px 0 12px 12px; border-bottom: 1px solid var(--rule); border-left: 3px solid var(--rule); align-items: start; }
+.sched-day:last-child { border-bottom: 0; }
+.sched-day[data-status="done"] { border-left-color: var(--ink); }
+.sched-day[data-status="delayed"] { border-left-color: var(--signal); }
+.sched-day[data-today] { border-left-color: var(--signal); background: var(--plate-2); }
+.sched-day[data-kind="off"] { border-left-style: dashed; padding-top: 8px; padding-bottom: 8px; }
+.sched-date { display: flex; flex-direction: column; gap: 2px; }
+.sched-date .code { font-weight: 700; font-size: 13px; }
+.sched-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sched-step { font-weight: 600; font-size: 14.5px; }
+.sched-step .code { color: var(--ink-3); font-size: 12px; margin-right: 4px; }
+.sched-day[data-status="done"] .sched-step { color: var(--ink-2); }
+.sched-state { grid-column: 2; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.sched-state:empty { display: none; }
+.day-controls { width: 100%; }
+@media (min-width: 760px) {
+  .sched-day { grid-template-columns: 84px 1fr auto; }
+  .sched-state { grid-column: 3; align-items: flex-end; }
+  .day-controls { width: auto; }
+}
+.customer-share > summary { list-style: none; display: inline-flex; margin-bottom: 12px; }
+.customer-share > summary::-webkit-details-marker { display: none; }
+.customer-copy { white-space: pre-wrap; font: 500 13px/1.6 var(--font-code); background: var(--plate-2); border: 1px solid var(--rule); border-radius: var(--radius); padding: 12px 14px; margin: 0; max-height: 320px; overflow: auto; overscroll-behavior: contain; user-select: text; }
+@media print {
+  .customer-share { display: block; }
+  .customer-share > summary, .sched-state { display: none !important; }
+}
+.nw { white-space: nowrap; }
+
+/* Theme switch: three-way segmented control in the identity block, icon button in the app bar. */
+.theme-switch { display: inline-grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; margin-top: 10px; }
+.theme-switch button { min-height: 36px; border: 0; border-radius: 0; padding: 0 10px; font-size: 12.5px; gap: 5px; background: transparent; color: inherit; }
+.theme-switch button + button { border-left: 1px solid var(--rule-strong); }
+.theme-switch button[aria-pressed="true"] { background: var(--ink); color: var(--plate); }
+.rail .theme-switch { border-color: rgb(255 255 255 / 0.18); }
+.rail .theme-switch button + button { border-left-color: rgb(255 255 255 / 0.18); }
+.rail .theme-switch button[aria-pressed="true"] { background: var(--chrome-ink); color: var(--chrome); }
+.theme-quick { min-height: 44px; width: 44px; padding: 0; color: var(--ink-2); }
+.appbar-end { display: flex; align-items: center; gap: 8px; }
+@media (min-width: 960px) { .theme-quick { display: none; } }
+
+/* Demo person switch: the app-bar chip carries an invisible native select, so the phone's own picker opens. */
+.whoami { position: relative; white-space: nowrap; }
+.person-chip-select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.whoami:has(.person-chip-select)::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); margin-left: 2px; }
+.whoami:has(.person-chip-select:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.person-field { margin-top: 10px; gap: 4px; }
+.person-field select { min-height: 40px; font-size: 14px; }
+.rail .person-field select { background: transparent; color: var(--chrome-ink); border-color: rgb(255 255 255 / 0.18); }
+.rail .person-field option, .rail .person-field optgroup { color: var(--ink); background: var(--plate); }
+
+/* Navigation feedback: the tapped tab marks itself pending at once, and a thin signal line runs along the top
+   until the next screen arrives. No placeholder screen: it would hold the real page back in batches. */
+.nav-pending { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; }
+.nav-pending.on { background: color-mix(in srgb, var(--signal) 14%, transparent); }
+body:has(.nav-pending.on)::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60; background: var(--signal); transform-origin: left; animation: navgrow 1.2s var(--ease-out) forwards; }
+@keyframes navgrow { from { transform: scaleX(0.08); } to { transform: scaleX(0.9); } }
+.rail nav a, .sheet nav a, .tabbar a { position: relative; }
+
+/* ---------- Attendance: the shift plate ---------- */
+.shift-plate[data-state="overtime"] { box-shadow: var(--shadow), inset 3px 0 0 var(--signal); }
+.shift-timers { display: grid; gap: 12px; margin: 14px 0 6px; }
+.shift-timer { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 12px; }
+.shift-timer-label { font: 600 10.5px/1.4 var(--font-code); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); grid-column: 1 / -1; }
+.shift-timer-value { font: 700 40px/1 var(--font-code); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; min-width: 8.2ch; }
+.shift-timer-sub { font-size: 13px; color: var(--ink-2); text-align: right; }
+.shift-timer.ot .shift-timer-value { color: var(--signal); font-size: 30px; }
+.shift-track { position: relative; height: 10px; background: var(--plate-3); border-radius: 2px; margin: 20px 0 18px; }
+.shift-fill { position: absolute; inset: 0; background: var(--ink); border-radius: 2px; transform-origin: left; transition: transform 900ms linear; }
+.shift-fill[data-warn] { background: var(--warn); }
+.shift-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--rule-strong); transform: translateX(-1px); }
+/* 7:30 sits under the bar, 8:00 above it, so the two marks never collide on a phone. */
+.shift-tick span { position: absolute; top: 15px; right: 4px; font: 600 10.5px/1 var(--font-code); color: var(--ink-3); white-space: nowrap; }
+.shift-tick.end { background: var(--signal); }
+.shift-tick.end span { top: -15px; right: 0; color: var(--signal); }
+.shift-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin: 0 0 12px; border-top: 1px solid var(--rule); }
+.shift-facts > div { padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.shift-facts dt { font: 600 10.5px/1.4 var(--font-code); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+.shift-facts dd { margin: 2px 0 0; font-size: 15px; font-weight: 700; }
+@media (min-width: 760px) { .shift-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.activity-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; }
+.activity-switch button { border: 0; border-radius: 0; min-height: 50px; flex-direction: column; gap: 3px; font-size: 12.5px; background: transparent; }
+.activity-switch button + button { border-left: 1px solid var(--rule-strong); }
+.activity-switch button[aria-pressed="true"] { background: var(--ink); color: var(--plate); }
+.ot-reason { display: grid; gap: 6px; margin-top: 12px; padding: 12px; background: var(--signal-soft); border-radius: var(--radius); }
+.shift-primary { margin-top: 14px; }
+.clock-btn { width: 100%; min-height: 56px; font-size: 16px; gap: 10px; }
+.clock-btn.clock-out { background: var(--plate); border: 2px solid var(--ink); color: var(--ink); }
+.shift-extras { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.shift-extras summary, .att-row summary { cursor: pointer; color: var(--ink-2); min-height: 32px; display: flex; align-items: center; }
+.notice[data-tone="warn"] { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 10px 12px; border-radius: var(--radius); font-size: 14px; }
+
+/* Attendance history and request lists */
+.att-list, .req-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.att-row { display: grid; gap: 8px; }
+.att-row[data-missed] { box-shadow: var(--shadow), inset 3px 0 0 var(--signal); }
+.att-head { display: flex; justify-content: space-between; align-items: center; }
+.att-date { font-weight: 700; font-size: 15px; }
+.att-times { font-size: 17px; font-weight: 700; }
+.att-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 0; }
+.att-figs dt { font: 600 10.5px/1.4 var(--font-code); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+.att-figs dd { margin: 0; }
+@media (min-width: 760px) { .att-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.req-list > li { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.req-list > li:last-child { border-bottom: 0; }
+@media (min-width: 760px) { .req-list > li { grid-template-columns: 120px 1fr auto; align-items: start; } }
+
+/* ---------- Evidence uploader and gallery ---------- */
+.evidence { display: grid; gap: 8px; padding: 12px; border: 1px dashed var(--rule-strong); border-radius: var(--radius); }
+.evidence-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.evidence-label { font-weight: 600; font-size: 14px; }
+.evidence-limits { font-size: 12px; color: var(--ink-3); }
+.evidence-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.evidence-actions button { min-height: 42px; font-size: 13px; }
+@media (pointer: fine) { .evidence-capture { display: none; } }
+.evidence-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.evidence-list li { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: start; }
+.evidence-list li[data-state="failed"] .evidence-status { color: var(--signal); }
+.evidence-thumb { width: 52px; height: 52px; border-radius: 3px; background: var(--plate-3); display: grid; place-items: center; overflow: hidden; color: var(--ink-3); }
+.evidence-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.evidence-meta { display: grid; gap: 3px; min-width: 0; }
+.evidence-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evidence-status { font-size: 12px; color: var(--ink-2); }
+.evidence-bar { height: 3px; background: var(--plate-3); border-radius: 2px; overflow: hidden; }
+.evidence-bar span { display: block; height: 100%; background: var(--ink); transform-origin: left; transition: transform 200ms linear; }
+.evidence-caption { min-height: 36px; padding: 6px 8px; font-size: 16px; }
+@media (min-width: 960px) { .evidence-caption { font-size: 13px; } }
+.evidence-item-actions { display: flex; gap: 4px; }
+.icon-btn { width: 40px; min-height: 40px; padding: 0; }
+.evidence-summary { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.evidence-gallery { margin: 8px 0 0; }
+.evidence-gallery ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.evidence-gallery li { display: grid; gap: 3px; }
+.evidence-gallery img, .evidence-gallery video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 3px; background: var(--plate-3); }
+.upload-status { position: fixed; z-index: 31; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px); display: inline-flex; align-items: center; gap: 8px;
+  background: var(--chrome); color: var(--chrome-ink); border-radius: 999px; padding: 8px 14px; font-size: 13px; box-shadow: var(--shadow-lift); max-width: calc(100vw - 32px); }
+.upload-status[data-failed] svg { color: var(--signal); }
+@media (min-width: 960px) { .upload-status { bottom: 20px; left: auto; right: 24px; transform: none; } }
+
+/* ---------- Notification bell, inbox and banner ---------- */
+.bell { position: relative; }
+.bell-btn { width: 40px; min-height: 40px; padding: 0; position: relative; background: var(--plate); }
+.bell-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--signal); color: #fff; font: 700 10.5px/18px var(--font-code); text-align: center; }
+.bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, calc(100vw - 32px)); max-height: 70dvh; overflow: auto; overscroll-behavior: contain; z-index: 50;
+  background: var(--plate); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow-lift); padding: 14px; display: grid; gap: 10px; animation: rise 200ms var(--ease-out); }
+.bell-head { display: flex; justify-content: space-between; align-items: center; }
+.bell-panel ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.bell-panel li { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.bell-panel li[data-unread] { box-shadow: inset 3px 0 0 var(--signal); padding-left: 10px; }
+.bell-title { font-weight: 700; font-size: 14px; }
+.toast { position: fixed; z-index: 55; left: 16px; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 66px); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start;
+  background: var(--chrome); color: var(--chrome-ink); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow-lift); animation: rise 260ms var(--ease-out); }
+.toast svg { color: var(--signal); }
+.toast span { display: grid; gap: 2px; }
+.toast .icon-btn { background: transparent; color: var(--chrome-ink); border-color: transparent; }
+@media (min-width: 960px) { .toast { left: auto; right: 24px; top: 64px; width: 380px; } }
+
+/* Narrow phones: the app bar keeps the wordmark short so the bell, theme and person chip fit. */
+@media (max-width: 440px) {
+  .appbar .wordmark span { display: none; }
+  .appbar-end { gap: 6px; }
+  .whoami { padding: 6px 8px; }
+}
+
+/* Site window: weekday checkboxes in a row. */
+.weekday-pick { display: flex; flex-wrap: wrap; gap: 6px 14px; border: 0; padding: 0; margin: 0; }
+.weekday-pick legend { margin-bottom: 6px; }
+
+/* Camera scanner (loaded on demand) */
+.scan-cam { display: grid; gap: 8px; }
+.scan-cam video { width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--radius); background: #000; }
+
+/* Handover window filter on the installations board */
+.handover-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.handover-range input { width: auto; min-height: 40px; }
+.handover-range a[aria-current] { border-color: var(--ink); font-weight: 700; }

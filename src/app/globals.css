@@ -90,6 +90,8 @@
 * { box-sizing: border-box; }
 html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 html, body { margin: 0; padding: 0; }
+/* Animated or rotated marks must never widen the page: a wider page makes phones zoom out and hides the bottom bar. */
+body { overflow-x: clip; }
 body {
   background: var(--ground); color: var(--ink);
   font: 400 15px/1.5 var(--font-ui);
@@ -169,7 +171,11 @@ button, .button, [role="button"], .tabbar a, .rail a, .tabs a, .steps a { touch-
 .sheet .identity { padding-top: 14px; font-size: 13px; color: var(--ink-2); }
 
 @media (min-width: 960px) {
-  .appbar, .tabbar { display: none; }
+  .tabbar { display: none; }
+  /* Desktop keeps only the bell from the phone app bar, docked top right. */
+  .appbar { position: fixed; top: 14px; right: 24px; left: auto; padding: 0; background: none; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; z-index: 35; }
+  .appbar > .wordmark, .appbar .whoami, .appbar .theme-quick { display: none; }
+  .main > .demo-banner { margin-right: 56px; }
   .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); }
   .rail {
     display: flex; flex-direction: column; gap: var(--s4); position: sticky; top: 0; height: 100dvh; overflow-y: auto;
@@ -210,7 +216,7 @@ button, .button, [role="button"], .tabbar a, .rail a, .tabs a, .steps a { touch-
   background: var(--plate); border-radius: var(--radius); padding: 16px; min-width: 0;
   box-shadow: var(--shadow); position: relative;
 }
-.plate-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.plate-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--rule); overflow: clip; overflow-clip-margin: 6px; }
 .code-tag { font: 600 12px/1 var(--font-code); color: var(--ink-2); letter-spacing: 0.02em; }
 .plate-title { font-size: 22px; font-weight: 760; letter-spacing: -0.02em; font-variation-settings: "wdth" 86; margin: 0; line-height: 1.12; }
 .plate-sub { color: var(--ink-2); font-size: 14px; margin-top: 4px; }
@@ -290,7 +296,7 @@ dl.facts dd { margin: 0; }
 .stamp-hero { font-size: 13px; padding: 5px 10px 4px; transform: rotate(-3deg); border-width: 2px; }
 .stamp-press { animation: stamp 520ms var(--ease-out) both; }
 @keyframes stamp {
-  0% { transform: rotate(-3deg) scale(1.9); opacity: 0; filter: blur(2px); }
+  0% { transform: rotate(-3deg) scale(1.35); opacity: 0; filter: blur(2px); }
   55% { transform: rotate(-3deg) scale(0.94); opacity: 1; filter: blur(0); }
   100% { transform: rotate(-3deg) scale(1); }
 }
@@ -443,99 +449,3 @@ details > summary.button::-webkit-details-marker { display: none; }
   .rows-mobile .row button, .rows-mobile td > span > button { flex: 1; }
   .rows-mobile tbody tr:hover td { background: none; }
 }
-
-/* Installations board: one plate per open site, the whole plate is the tap target. */
-.search-bar { display: flex; align-items: center; gap: 10px; background: var(--plate); border: 1px solid var(--rule-strong); border-radius: var(--radius); padding: 0 12px; color: var(--ink-3); }
-.search-bar:focus-within { border-color: var(--ink); }
-.search-bar input { border: 0; background: transparent; padding: 10px 0; min-height: 46px; box-shadow: none; }
-.search-bar input:focus { box-shadow: none; }
-.section-label { font: 700 12px/1 var(--font-code); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-2); margin: 8px 0 0; display: flex; gap: 8px; }
-.section-label .code { color: var(--ink-3); }
-.install-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-@media (min-width: 1100px) { .install-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.site-card { display: block; text-decoration: none; color: var(--ink); height: 100%; transition: transform 120ms var(--ease-press), box-shadow 160ms var(--ease-out); }
-.site-card:active { transform: scale(0.99); }
-@media (hover: hover) and (pointer: fine) { .site-card:hover { box-shadow: var(--shadow-lift); } }
-.site-card h3.plate-title { font-size: 20px; }
-.site-facts { margin: 12px 0 0; display: grid; gap: 0; }
-.site-facts > div { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); align-items: baseline; }
-.site-facts dt { font: 600 10.5px/1.4 var(--font-code); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
-.site-facts dd { margin: 0; font-size: 14px; }
-.team-line svg { vertical-align: -3px; color: var(--ink-3); }
-.site-progress { display: grid; grid-template-columns: 1fr auto auto 18px; gap: 10px; align-items: center; padding-top: 10px; border-top: 1px solid var(--rule); }
-.site-progress .meter { margin-top: 0; }
-.site-progress .code { font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* Installation detail: progress hero, schedule rail, customer copy. */
-.back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--ink-2); text-decoration: none; min-height: 44px; }
-.progress-hero { display: grid; gap: 10px; margin: 16px 0 6px; }
-.progress-hero > div:first-child { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.progress-figure { font: 700 44px/1 var(--font-code); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
-.progress-figure small { font-size: 20px; color: var(--ink-3); margin-left: 2px; }
-.meter-lg { height: 8px; border-radius: 2px; margin-top: 0; }
-.meter-lg span { border-radius: 2px; }
-.spec-text { font-weight: 600; font-size: 14px; }
-.spec-text[data-tone="bad"] { color: var(--signal); }
-.schedule { list-style: none; margin: 0 0 12px; padding: 0; }
-.sched-day { display: grid; grid-template-columns: 64px 1fr; gap: 4px 12px; padding: 12px 0 12px 12px; border-bottom: 1px solid var(--rule); border-left: 3px solid var(--rule); align-items: start; }
-.sched-day:last-child { border-bottom: 0; }
-.sched-day[data-status="done"] { border-left-color: var(--ink); }
-.sched-day[data-status="delayed"] { border-left-color: var(--signal); }
-.sched-day[data-today] { border-left-color: var(--signal); background: var(--plate-2); }
-.sched-day[data-kind="off"] { border-left-style: dashed; padding-top: 8px; padding-bottom: 8px; }
-.sched-date { display: flex; flex-direction: column; gap: 2px; }
-.sched-date .code { font-weight: 700; font-size: 13px; }
-.sched-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.sched-step { font-weight: 600; font-size: 14.5px; }
-.sched-step .code { color: var(--ink-3); font-size: 12px; margin-right: 4px; }
-.sched-day[data-status="done"] .sched-step { color: var(--ink-2); }
-.sched-state { grid-column: 2; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.sched-state:empty { display: none; }
-.day-controls { width: 100%; }
-@media (min-width: 760px) {
-  .sched-day { grid-template-columns: 84px 1fr auto; }
-  .sched-state { grid-column: 3; align-items: flex-end; }
-  .day-controls { width: auto; }
-}
-.customer-share > summary { list-style: none; display: inline-flex; margin-bottom: 12px; }
-.customer-share > summary::-webkit-details-marker { display: none; }
-.customer-copy { white-space: pre-wrap; font: 500 13px/1.6 var(--font-code); background: var(--plate-2); border: 1px solid var(--rule); border-radius: var(--radius); padding: 12px 14px; margin: 0; max-height: 320px; overflow: auto; overscroll-behavior: contain; user-select: text; }
-@media print {
-  .customer-share { display: block; }
-  .customer-share > summary, .sched-state { display: none !important; }
-}
-.nw { white-space: nowrap; }
-
-/* Theme switch: three-way segmented control in the identity block, icon button in the app bar. */
-.theme-switch { display: inline-grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; margin-top: 10px; }
-.theme-switch button { min-height: 36px; border: 0; border-radius: 0; padding: 0 10px; font-size: 12.5px; gap: 5px; background: transparent; color: inherit; }
-.theme-switch button + button { border-left: 1px solid var(--rule-strong); }
-.theme-switch button[aria-pressed="true"] { background: var(--ink); color: var(--plate); }
-.rail .theme-switch { border-color: rgb(255 255 255 / 0.18); }
-.rail .theme-switch button + button { border-left-color: rgb(255 255 255 / 0.18); }
-.rail .theme-switch button[aria-pressed="true"] { background: var(--chrome-ink); color: var(--chrome); }
-.theme-quick { min-height: 44px; width: 44px; padding: 0; color: var(--ink-2); }
-.appbar-end { display: flex; align-items: center; gap: 8px; }
-@media (min-width: 960px) { .theme-quick { display: none; } }
-
-/* Demo person switch: the app-bar chip carries an invisible native select, so the phone's own picker opens. */
-.whoami { position: relative; white-space: nowrap; }
-.person-chip-select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; cursor: pointer; font-size: 16px; }
-.whoami:has(.person-chip-select)::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); margin-left: 2px; }
-.whoami:has(.person-chip-select:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-.person-field { margin-top: 10px; gap: 4px; }
-.person-field select { min-height: 40px; font-size: 14px; }
-.rail .person-field select { background: transparent; color: var(--chrome-ink); border-color: rgb(255 255 255 / 0.18); }
-.rail .person-field option, .rail .person-field optgroup { color: var(--ink); background: var(--plate); }
-
-/* Route loading: skeleton plates in the page's own shape, shown at once on navigation. */
-.skeleton { display: grid; gap: 16px; }
-.skeleton .sk { background: var(--plate); border-radius: var(--radius); box-shadow: var(--shadow); position: relative; overflow: hidden; }
-.skeleton .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--plate-3) 70%, transparent), transparent); animation: shimmer 1.2s ease-in-out infinite; }
-.skeleton .sk-title { height: 30px; width: 46%; box-shadow: none; background: var(--plate-3); }
-.skeleton .sk-line { height: 14px; width: 72%; box-shadow: none; background: var(--plate-3); }
-@keyframes shimmer { to { transform: translateX(100%); } }
-
-/* Navigation progress: a thin signal line while the next screen is fetched. */
-.nav-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60; background: var(--signal); transform-origin: left; animation: navgrow 1.4s var(--ease-out) forwards; }
-@keyframes navgrow { from { transform: scaleX(0.05); } to { transform: scaleX(0.85); } }
