@@ -8,9 +8,12 @@ import { Check, Copy, Printer, Warning } from "@phosphor-icons/react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { applyInstallSchedule, setScheduleDayStatus } from "@/app/actions";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 export function DayControls({ dayId, status }: { dayId: string; status: string }) {
-  const { run, pending, result } = useAction(setScheduleDayStatus);
+  const draft = useEvidenceDraft("schedule.day");
+  const [linked, setLinked] = useState("");
+  const { run, pending, result } = useAction(setScheduleDayStatus, { onSuccess: async () => setLinked(attachmentNote(await draft.attach("schedule_day", dayId))) });
   const [slip, setSlip] = useState(false);
   const [note, setNote] = useState("");
   if (status === "done") {
@@ -27,13 +30,14 @@ export function DayControls({ dayId, status }: { dayId: string; status: string }
         <form className="stack" style={{ gap: 8 }} onSubmit={(e) => { e.preventDefault(); run({ dayId, status: "delayed", note }); }}>
           <label className="small" htmlFor={`n-${dayId}`}>Why did this day slip?</label>
           <input id={`n-${dayId}`} value={note} onChange={(e) => setNote(e.target.value)} required minLength={3} maxLength={300} enterKeyHint="send" />
+          <EvidenceUploader draft={draft} />
           <div className="row" style={{ gap: 8 }}>
             <button type="submit" className="primary" disabled={pending}>Save</button>
             <button type="button" onClick={() => setSlip(false)}>Cancel</button>
           </div>
         </form>
       )}
-      <ResultNotice result={result} />
+      <ResultNotice result={result} successText={`Saved.${linked}`} />
     </div>
   );
 }

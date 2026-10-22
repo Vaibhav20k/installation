@@ -8,6 +8,7 @@ import { Minus, Plus, Warning } from "@phosphor-icons/react";
 import { recordDelay, recordProgress } from "@/app/actions";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 interface Task { id: string; task: string; component: string; activity: string; unit: string; scoped: string; accepted: string; pending: string; target: string | null; kind: string }
 
@@ -15,7 +16,9 @@ function TaskRow({ t, canRecord, isEmployee }: { t: Task; canRecord: boolean; is
   const remaining = Math.max(0, Number(t.scoped) - Number(t.accepted) - Number(t.pending));
   const [n, setN] = useState(0);
   const [stamped, setStamped] = useState<number | null>(null);
-  const prog = useAction(recordProgress, { onSuccess: () => { setStamped(n); setN(0); } });
+  const draft = useEvidenceDraft("progress.quantity");
+  const [note, setNote] = useState("");
+  const prog = useAction(recordProgress, { onSuccess: async (d) => { setStamped(n); setN(0); setNote(attachmentNote(await draft.attach("progress_event", (d as { id: string }).id))); } });
   const step = (d: number) => { setN((v) => Math.min(remaining, Math.max(0, v + d))); setStamped(null); };
   const done = Number(t.accepted) + Number(t.pending);
   const pct = Number(t.scoped) > 0 ? Math.min(100, (done / Number(t.scoped)) * 100) : 0;
@@ -43,13 +46,22 @@ function TaskRow({ t, canRecord, isEmployee }: { t: Task; canRecord: boolean; is
           </button>
         </div>
       )}
+      {canRecord && remaining > 0 && (
+        <details className="task-evidence">
+          <summary className="small">Photos or video for this update{draft.items.length ? ` (${draft.items.length})` : ""}</summary>
+          <EvidenceUploader draft={draft} />
+        </details>
+      )}
+      {note && <p className="small muted" role="status" style={{ margin: "6px 0 0" }}>{note.trim()}</p>}
       {prog.result && !prog.result.ok && <ResultNotice result={prog.result} />}
     </li>
   );
 }
 
 export function DayProgress({ visitId, tasks, canRecord, isEmployee }: { visitId: string; tasks: Task[]; canRecord: boolean; isEmployee: boolean }) {
-  const block = useAction(recordDelay);
+  const blockDraft = useEvidenceDraft("blocker.report");
+  const [blockNote, setBlockNote] = useState("");
+  const block = useAction(recordDelay, { onSuccess: async (d) => setBlockNote(attachmentNote(await blockDraft.attach("delay_event", (d as { id: string }).id))) });
   return (
     <div className="stack" style={{ gap: 16 }}>
       <ul className="task-list" id="progress">{tasks.map((t) => <TaskRow key={t.id} t={t} canRecord={canRecord} isEmployee={isEmployee} />)}</ul>
@@ -68,8 +80,9 @@ export function DayProgress({ visitId, tasks, canRecord, isEmployee }: { visitId
               <div className="field"><label htmlFor="bl-m">For how long, until now (minutes)</label><input id="bl-m" name="mins" type="number" inputMode="numeric" min={5} max={720} defaultValue={30} required /></div>
             </div>
             <div className="field"><label htmlFor="bl-i">Details</label><input id="bl-i" name="i" enterKeyHint="send" /></div>
+            <EvidenceUploader draft={blockDraft} />
             <button type="submit" className="primary" disabled={block.pending}>Report blocker</button>
-            <ResultNotice result={block.result} successText="Blocker reported. Responsibility is assessed separately; it is not assigned to you." />
+            <ResultNotice result={block.result} successText={`Blocker reported. Responsibility is assessed separately; it is not assigned to you.${blockNote}`} />
           </form>
         </details>
       )}

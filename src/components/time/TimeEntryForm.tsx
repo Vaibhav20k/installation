@@ -3,6 +3,7 @@ import { useId, useRef, useState } from "react";
 import { amendTimeEntry, createTimeEntry, updateDraftEntry } from "@/app/actions";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 export interface EntryDefaults { entryId?: string; version?: number; mode?: "create" | "edit" | "amend"; date?: string; endDate?: string; start?: string; end?: string; activity?: string; projectId?: string | null; visitId?: string | null; overhead?: string | null }
 
@@ -18,7 +19,14 @@ export function TimeEntryForm({ employeeId, timezone, defaultDate, projects, vis
   const action = mode === "amend" ? amendTimeEntry : mode === "edit" ? updateDraftEntry : createTimeEntry;
   // One idempotency token per form submission attempt; a successful save starts a fresh token.
   const token = useRef<string | null>(null);
-  const { run, pending, result } = useAction(action, { onSuccess: () => { token.current = null; onDone?.(); } });
+  const draft = useEvidenceDraft(mode === "amend" ? "time.correction" : "time.entry");
+  const [linked, setLinked] = useState("");
+  const { run, pending, result } = useAction(action, { onSuccess: async (d) => {
+    token.current = null;
+    const id = (d as { id?: string } | null)?.id ?? defaults.entryId;
+    if (id) setLinked(attachmentNote(await draft.attach("time_entry", id)));
+    onDone?.();
+  } });
   const key = useId().replace(/:/g, "");
   const projectVisits = visits.filter((v) => v.project_id === projectId);
   return (
@@ -77,8 +85,9 @@ export function TimeEntryForm({ employeeId, timezone, defaultDate, projects, vis
       </fieldset>
       <div className="field"><label htmlFor={`${key}-n`}>Note {mode === "create" && "(required if no booking covers this time)"}</label><textarea id={`${key}-n`} name="note" /></div>
       {mode === "amend" && <div className="field"><label htmlFor={`${key}-r`}>Reason for the correction</label><input id={`${key}-r`} name="reason" required minLength={3} /></div>}
+      <EvidenceUploader draft={draft} />
       <button type="submit" className="primary" disabled={pending}>{pending ? "Saving…" : mode === "amend" ? "Save correction as new revision" : mode === "edit" ? "Save draft" : "Save draft entry"}</button>
-      <ResultNotice result={result} successText={mode === "amend" ? "Correction saved as a new revision; any final month covering it is now invalidated for review." : "Saved as draft. Submit it when the day is complete."} />
+      <ResultNotice result={result} successText={(mode === "amend" ? "Correction saved as a new revision; any final month covering it is now invalidated for review." : "Saved as draft. Submit it when the day is complete.") + linked} />
     </form>
   );
 }

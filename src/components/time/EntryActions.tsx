@@ -4,13 +4,16 @@ import { requestOvertime, submitTimeEntries } from "@/app/actions";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { TimeEntryForm } from "./TimeEntryForm";
 
 interface Entry { id: string; state: string; version: number; date: string; endDate: string; start: string; end: string; activity: string; projectId: string | null; visitId: string | null; overhead: string | null; timezone: string }
 
 export function EntryActions({ entry, employeeId, canAct }: { entry: Entry; employeeId: string; canAct: boolean }) {
   const [mode, setMode] = useState<null | "ot" | "amend">(null);
-  const ot = useAction(requestOvertime);
+  const otDraft = useEvidenceDraft("overtime.request");
+  const [otLinked, setOtLinked] = useState("");
+  const ot = useAction(requestOvertime, { onSuccess: async (d) => setOtLinked(attachmentNote(await otDraft.attach("ot_request", (d as { id: string }).id))) });
   if (!canAct) return null;
   return (
     <div className="stack" style={{ gap: 4, minWidth: 140 }}>
@@ -30,8 +33,9 @@ export function EntryActions({ entry, employeeId, canAct }: { entry: Entry; empl
           </div>
           <label className="sr-only" htmlFor={`otr-${entry.id}`}>Why the extra time was needed</label>
           <input id={`otr-${entry.id}`} name="r" placeholder="Why was extra time needed?" required minLength={3} />
+          <EvidenceUploader draft={otDraft} />
           <button type="submit" disabled={ot.pending}>Send for review</button>
-          <ResultNotice result={ot.result} successText="Request sent. A reviewer verifies the reason; the confirmed catch-up rule cannot be overridden." />
+          <ResultNotice result={ot.result} successText={`Request sent. A reviewer verifies the reason; the confirmed catch-up rule cannot be overridden. Evidence never grants approval.${otLinked}`} />
         </form>
       )}
       {mode === "amend" && (

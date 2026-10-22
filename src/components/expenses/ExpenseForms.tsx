@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { allocateExpense, approveBudget, recordExpenseCredit, submitExpense } from "@/app/actions";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { rupeesToMinor } from "@/lib/format";
 
 const CATEGORIES = ["meal", "accommodation", "outbound_travel", "return_travel", "local_transport", "consumables", "unloading", "additional_manpower", "rework", "other"];
@@ -12,7 +13,9 @@ export function ExpenseForms({ projects, visits, expenses, canAllocate, canBudge
   expenses: Array<{ id: string; label: string; projectId: string; state: string }>; canAllocate: boolean; canBudget: boolean;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
-  const submit = useAction(submitExpense, { onSuccess: () => { token.current = null; } });
+  const xDraft = useEvidenceDraft("expense.claim");
+  const [xLinked, setXLinked] = useState("");
+  const submit = useAction(submitExpense, { onSuccess: async (d) => { token.current = null; setXLinked(attachmentNote(await xDraft.attach("expense", (d as { id: string }).id))); } });
   const credit = useAction(recordExpenseCredit);
   const alloc = useAction(allocateExpense);
   const budget = useAction(approveBudget);
@@ -37,9 +40,10 @@ export function ExpenseForms({ projects, visits, expenses, canAllocate, canBudge
             <div className="field"><label htmlFor="x-vn">Vendor</label><input id="x-vn" name="vendor" /></div>
             <div className="field"><label htmlFor="x-l">Load ID (unloading)</label><input id="x-l" name="load" /></div>
           </div>
-          <p className="small muted">Enter a shared cost (for example two rooms for three nights) once; do not repeat it per employee. Receipts are referenced, not uploaded.</p>
+          <p className="small muted">Enter a shared cost (for example two rooms for three nights) once; do not repeat it per employee. Add a photo of the receipt below if you have one; the amount you type is what counts, not the photo.</p>
+          <EvidenceUploader draft={xDraft} label="Receipt photo or video (optional)" />
           <button type="submit" className="primary" disabled={submit.pending}>Submit expense</button>
-          <ResultNotice result={submit.result} successText="Submitted for approval by a manager other than you." />
+          <ResultNotice result={submit.result} successText={`Submitted for approval by a manager other than you.${xLinked}`} />
         </form>
       </section>
       <section className="card stack" aria-labelledby="h-more">

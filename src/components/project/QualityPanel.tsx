@@ -2,6 +2,8 @@
 import { closeAction, closeQualityCase, createIssue, openQualityCase, reopenQualityCase } from "@/app/actions";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
+import { useState } from "react";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { Badge } from "@/components/ui/Badge";
 
 const FUNCTIONS = ["Factory", "Purchase", "Logistics", "Services", "Site", "Installation", "Customer", "Unknown"];
@@ -11,7 +13,9 @@ export function QualityPanel({ projectId, quality, issues, orders, actorId }: {
   quality: Array<{ id: string; business_id: string; kind: string; category: string; status: string; reported_on: string; responsible_function: string | null; closed_on: string | null }>;
   issues: Array<{ id: string; business_id: string; function: string; category: string; status: string; due_date: string | null; owner: string | null; next_action: string | null; version: number }>;
 }) {
-  const open = useAction(openQualityCase);
+  const qDraft = useEvidenceDraft("quality.case");
+  const [qNote, setQNote] = useState("");
+  const open = useAction(openQualityCase, { onSuccess: async (d) => setQNote(attachmentNote(await qDraft.attach("quality_case", (d as { id: string }).id))) });
   const close = useAction(closeQualityCase);
   const reopen = useAction(reopenQualityCase);
   const issue = useAction(createIssue);
@@ -51,8 +55,9 @@ export function QualityPanel({ projectId, quality, issues, orders, actorId }: {
           </div>
           <div className="field"><label htmlFor="q-rc">Root cause</label><input id="q-rc" name="rc" /></div>
           <div className="field"><label htmlFor="q-ca">Corrective action</label><input id="q-ca" name="ca" /></div>
+          <EvidenceUploader draft={qDraft} />
           <button type="submit" disabled={open.pending}>Record case</button>
-          <ResultNotice result={open.result} successText="Case recorded." />
+          <ResultNotice result={open.result} successText={`Case recorded.${qNote}`} />
         </form>
         <p className="small muted">A later complaint opens a linked case; the original acceptance date is never rewritten.</p>
       </section>

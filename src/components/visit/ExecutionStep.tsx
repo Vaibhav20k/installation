@@ -7,6 +7,8 @@ import { ResultNotice } from "@/components/ui/ResultNotice";
 import { Badge } from "@/components/ui/Badge";
 import { Notice } from "@/components/ui/Notice";
 import { qty, when } from "@/lib/format";
+import { useState } from "react";
+import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 interface V { id: string; version: number; exec_status: string; planned_start: string | null; planned_end: string | null; timezone: string }
 interface ScopeRow { id: string; task: string; component: string; activity: string; unit: string; scoped: string; kind: string; status: string; accepted: string }
@@ -20,8 +22,12 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
 }) {
   const prog = useAction(recordProgress);
   const tgt = useAction(setDailyTarget);
-  const dly = useAction(recordDelay);
-  const acc = useAction(recordAcceptance);
+  const dDraft = useEvidenceDraft("delay.record");
+  const aDraft = useEvidenceDraft("acceptance.record");
+  const [dNote, setDNote] = useState("");
+  const [aNote, setANote] = useState("");
+  const dly = useAction(recordDelay, { onSuccess: async (d) => setDNote(attachmentNote(await dDraft.attach("delay_event", (d as { id: string }).id))) });
+  const acc = useAction(recordAcceptance, { onSuccess: async (d) => setANote(attachmentNote(await aDraft.attach("acceptance", (d as { id: string }).id))) });
   const fu = useAction(createFollowUpVisit);
   const manager = role === "manager" || role === "admin";
   const active = scope.filter((s) => s.status === "active");
@@ -129,8 +135,9 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
             </div>
             <div className="field"><label htmlFor="dl-i">Impact</label><input id="dl-i" name="im" /></div>
             <div className="field"><label htmlFor="dl-ev">Evidence</label><input id="dl-ev" name="ev" /></div>
+            <EvidenceUploader draft={dDraft} />
             <button type="submit" disabled={dly.pending}>Record delay</button>
-            <ResultNotice result={dly.result} successText="Delay recorded. Responsibility is not inferred from who reported it." />
+            <ResultNotice result={dly.result} successText={`Delay recorded. Responsibility is not inferred from who reported it.${dNote}`} />
           </form>
           <ul className="small">{delays.map((d, i) => <li key={i}>{d.cause.replace("_", " ")} · {when(d.start, visit.timezone)} → {when(d.end, visit.timezone)} · {d.responsible_function ?? "function unknown"} · fault: {d.employee_fault.replace("_", " ")}{d.impact ? ` · ${d.impact}` : ""}</li>)}</ul>
         </section>
@@ -146,8 +153,9 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
               <div className="field"><label htmlFor="ac-on">Accepted on</label><input id="ac-on" type="date" name="on" /></div>
             </div>
             <div className="field"><label htmlFor="ac-ev">Evidence</label><input id="ac-ev" name="ev" /></div>
+            <EvidenceUploader draft={aDraft} label="Photos or video of the handover (optional; not a signature)" />
             <button type="submit" disabled={acc.pending}>Record</button>
-            <ResultNotice result={acc.result} />
+            <ResultNotice result={acc.result} successText={`Recorded.${aNote}`} />
           </form>
           <ul className="small">{acceptance.map((a, i) => <li key={i}>{a.signed_off ? `Signed off by ${a.signed_by_name ?? "customer"} on ${a.accepted_on}` : "Not signed off"}{a.evidence ? ` · ${a.evidence}` : ""}</li>)}</ul>
           <p className="small muted">Unknown sign-off is never counted as accepted in quality metrics.</p>
