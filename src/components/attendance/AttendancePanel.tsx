@@ -8,9 +8,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Coffee, Hammer, Pause, SignIn, SignOut, Truck } from "@phosphor-icons/react";
 import { useAction } from "@/components/ui/useAction";
-import { ClockInCamera } from "./ClockInCamera";
+import dynamic from "next/dynamic";
 import { ResultNotice } from "@/components/ui/ResultNotice";
-import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { AttachToRecord, EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+
+// The camera code loads only when Clock in is tapped, so My day stays light.
+const ClockInCamera = dynamic(() => import("./ClockInCamera").then((m) => m.ClockInCamera), { ssr: false, loading: () => <p className="small muted" role="status">Opening the camera…</p> });
 import { addAttendanceNote, clockIn, clockOut, requestAttendanceCorrection, setAttendanceActivity, setOvertimeReason } from "@/app/actions";
 
 export interface PanelShift {
@@ -153,6 +156,10 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
         </form>
       )}
       <ResultNotice result={act.result && !act.result.ok ? act.result : null} />
+      {shift?.open && act.result?.ok && (act.result.data as { eventId?: string }).eventId && (
+        <AttachToRecord key={(act.result.data as { eventId: string }).eventId} parentType="attendance_event" id={(act.result.data as { eventId: string }).eventId}
+          context="attendance.activity" label={`Photo or video for this ${ACTIVITIES.find((x) => x.id === (act.result?.ok ? (act.result.data as { activity: string }).activity : ""))?.label.toLowerCase() ?? "activity"} (optional)`} />
+      )}
 
       {shift && (shift.state === "overtime" || shift.recordedOvertimeWorkMinutes > 0) && (
         <div className="ot-reason">
@@ -164,6 +171,7 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
           {(shift.otReason === "catch_up" || (reason.result?.ok && (reason.result.data as { catchUp: boolean }).catchUp)) && (
             <p className="notice" data-tone="warn" role="status" style={{ margin: 0 }}>Recorded after regular hours. Original-target catch-up is not eligible for overtime approval.</p>
           )}
+          {shift.otReason && <AttachToRecord parentType="shift_instance" id={shift.shiftId} context="overtime.reason" label="Photo or video explaining the overtime (optional)" />}
         </div>
       )}
 

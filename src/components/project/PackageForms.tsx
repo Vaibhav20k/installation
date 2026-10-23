@@ -4,10 +4,11 @@
  * asked for and only where the browser supports barcode detection. Repeat scans are harmless (one event id each tap).
  */
 import { useEffect, useRef, useState } from "react";
-import { Barcode, Camera, X } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
+import { Barcode, Camera } from "@phosphor-icons/react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
-import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { AttachToRecord, EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { addPackage, decidePackageException, raisePackageException, recordScan } from "@/app/actions";
 
 const val = (f: FormData, k: string) => { const v = String(f.get(k) ?? "").trim(); return v || undefined; };
@@ -32,38 +33,8 @@ export function AddPackageForm({ projectId, orders }: { projectId: string; order
   );
 }
 
-interface Detector { detect(src: CanvasImageSource): Promise<Array<{ rawValue: string }>> }
-
-/** Camera scanner, created only on demand. Falls back to typing when unsupported or when camera access is denied. */
-function CameraScan({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
-  const video = useRef<HTMLVideoElement>(null);
-  const [msg, setMsg] = useState("Starting camera…");
-  useEffect(() => {
-    let stream: MediaStream | null = null, stop = false;
-    const W = window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector };
-    if (!W.BarcodeDetector) { setMsg("This browser cannot read codes with the camera. Type the code instead."); return; }
-    const det = new W.BarcodeDetector({ formats: ["qr_code", "code_128", "code_39", "ean_13"] });
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(async (s) => {
-      stream = s;
-      if (!video.current) return;
-      video.current.srcObject = s; await video.current.play(); setMsg("Point the camera at the package code.");
-      const tick = async () => {
-        if (stop || !video.current) return;
-        try { const r = await det.detect(video.current); if (r[0]?.rawValue) { onCode(r[0].rawValue); return; } } catch { /* keep trying */ }
-        setTimeout(tick, 250);
-      };
-      void tick();
-    }).catch(() => setMsg("Camera access was not allowed. Type the code instead."));
-    return () => { stop = true; stream?.getTracks().forEach((t) => t.stop()); };
-  }, [onCode]);
-  return (
-    <div className="scan-cam">
-      <video ref={video} muted playsInline aria-label="Camera view for scanning" />
-      <p className="small" role="status">{msg}</p>
-      <button type="button" onClick={onClose}><X size={16} aria-hidden /> Close camera</button>
-    </div>
-  );
-}
+// The camera scanner loads only when asked for (checklist phase 2: heavy modules on demand).
+const CameraScan = dynamic(() => import("./PackageScanner").then((m) => m.CameraScan), { ssr: false, loading: () => <p className="small muted" role="status">Starting camera…</p> });
 
 export function ScanBox({ projectId, kinds = ["receipt", "damage"] }: { projectId: string; kinds?: Array<"dispatch" | "receipt" | "damage"> }) {
   const a = useAction(recordScan);
@@ -71,7 +42,9 @@ export function ScanBox({ projectId, kinds = ["receipt", "damage"] }: { projectI
   const [code, setCode] = useState("");
   const [cam, setCam] = useState(false);
   const send = (c: string, method: "camera" | "manual") => { if (c.trim()) a.run({ projectId, code: c.trim(), kind, clientEventId: crypto.randomUUID(), method }); setCode(""); setCam(false); };
-  const r = a.result?.ok ? (a.result.data as { known: boolean; duplicate: boolean; exceptionId: string | null }) : null;
+  const r = a.result?.ok ? (a.result.data as { id: string; known: boolean; duplicate: boolean; exceptionId: string | null }) : null;
+  // Photos go on the opened exception when there is one, otherwise on the scan itself (unknown codes always open one).
+  const target = r ? (r.exceptionId ? { type: "package_exception", id: r.exceptionId } : r.known ? { type: "scan_event", id: r.id } : null) : null;
   return (
     <div className="stack">
       <div className="row">
@@ -84,6 +57,7 @@ export function ScanBox({ projectId, kinds = ["receipt", "damage"] }: { projectI
       </div>
       {cam && <CameraScan onCode={(c) => send(c, "camera")} onClose={() => setCam(false)} />}
       <ResultNotice result={a.result} successText={r ? (r.duplicate ? "Already recorded; not counted again." : r.known ? (r.exceptionId ? "Damage recorded and an exception opened." : "Recorded. A received box does not confirm its contents.") : "That code is not in the manifest; kept as an unknown-scan exception.") : "Recorded."} />
+      {target && <AttachToRecord key={target.id} parentType={target.type} id={target.id} context="package.scan" label="Photo or video of the box or label (optional)" />}
     </div>
   );
 }
