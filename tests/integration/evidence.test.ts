@@ -7,6 +7,7 @@ import { loadActor } from "@/server/auth/actor";
 import { makeCtx } from "@/server/services/context";
 import { createTimeEntry } from "@/server/services/time";
 import { requestLeave } from "@/server/services/attendance";
+import { setQuantitySnapshot } from "@/server/services/site";
 import { authorizeAssetRead, completeEvidenceUpload, createEvidenceUpload, evidenceFor, linkEvidence, receiveUpload, removeDraftEvidence } from "@/server/services/evidence";
 import { AppError } from "@/server/errors";
 import { freshDb } from "./helpers";
@@ -106,5 +107,20 @@ describe("evidence pipeline", () => {
     const e = await createTimeEntry(await as(worker), { employeeId: worker, overheadCategory: "training", activity: "other", start: { date: "2026-10-19", time: "13:00" }, end: { date: "2026-10-19", time: "14:00" } });
     expect(e.id).toBeTruthy();
     delete process.env.IM_EVIDENCE_STORAGE;
+  });
+
+  it("measurements take photos on their own record; people outside the project cannot attach (checklist phase 7 coverage)", async () => {
+    const [admin] = await db.query<{ id: string }>("select id from employee where permission_role = 'admin' order by business_id limit 1");
+    const [c] = await db.query<{ id: string; unit: string; quantity_kind: string }>("select id, unit, quantity_kind from component order by business_id limit 1");
+    const snap = await setQuantitySnapshot(await as(admin!.id), { componentId: c!.id, basis: "net", quantity: "42", unit: c!.unit, quantityKind: c!.quantity_kind, source: "Site measure" });
+    const draft = crypto.randomUUID();
+    const p = await upload(admin!.id, draft, "tape.jpg", "image/jpeg", JPEG, "site.measurement");
+    await p.complete();
+    expect(await linkEvidence(await as(admin!.id), { draftKey: draft, parentType: "quantity_snapshot", parentId: snap.id })).toEqual({ linked: 1, pending: 0 });
+    expect((await evidenceFor(db, (await loadActor(db, admin!.id))!, "quantity_snapshot", snap.id)).length).toBe(1);
+    const d2 = crypto.randomUUID();
+    const q = await upload(worker, d2, "x.jpg", "image/jpeg", JPEG, "site.measurement");
+    await q.complete();
+    expect(["forbidden", "not_found"]).toContain(await kind(linkEvidence(await as(worker), { draftKey: d2, parentType: "quantity_snapshot", parentId: snap.id })));
   });
 });

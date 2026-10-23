@@ -1,19 +1,26 @@
 "use client";
 import { addEmployeeSkill, recordLeave, verifySkill } from "@/app/actions";
+import { useState } from "react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
+import { EvidenceUploader, useAttachOnSave, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 export function SkillForms({ employeeId, skills, records, canVerify, canRecordLeave }: {
   employeeId: string; skills: Array<{ id: string; name: string }>; records: Array<{ id: string; label: string; verified: boolean }>; canVerify: boolean; canRecordLeave: boolean;
 }) {
   const add = useAction(addEmployeeSkill);
   const ver = useAction(verifySkill);
+  const addDraft = useEvidenceDraft("skill.claim");
+  const verDraft = useEvidenceDraft("skill.verification");
+  const [verifiedId, setVerifiedId] = useState<string | null>(null);
+  const addNote = useAttachOnSave(addDraft, "employee_skill", add.result?.ok ? (add.result.data as { id: string }).id : null);
+  const verNote = useAttachOnSave(verDraft, "employee_skill", ver.result?.ok ? verifiedId : null);
   const leave = useAction(recordLeave);
   const leaveData = leave.result?.ok ? (leave.result.data as { conflictingVisits: string[] }) : null;
   return (
     <div className="stack">
       {canVerify && records.length > 0 && (
-        <form className="form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); ver.run({ employeeSkillId: String(f.get("r")), verified: f.get("v") === "yes", validTo: f.get("to") ? String(f.get("to")) : undefined, note: String(f.get("n") || "") || undefined }); }}>
+        <form className="form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setVerifiedId(String(f.get("r"))); ver.run({ employeeSkillId: String(f.get("r")), verified: f.get("v") === "yes", validTo: f.get("to") ? String(f.get("to")) : undefined, note: String(f.get("n") || "") || undefined }); }}>
           <h3>Verify a skill</h3>
           <div className="fields">
             <div className="field"><label htmlFor="v-r">Record</label><select id="v-r" name="r">{records.map((r) => <option key={r.id} value={r.id}>{r.label}{r.verified ? " (verified)" : ""}</option>)}</select></div>
@@ -21,8 +28,9 @@ export function SkillForms({ employeeId, skills, records, canVerify, canRecordLe
             <div className="field"><label htmlFor="v-to">Valid until (optional)</label><input id="v-to" type="date" name="to" /></div>
           </div>
           <div className="field"><label htmlFor="v-n">Basis for the decision</label><input id="v-n" name="n" /></div>
+          <EvidenceUploader draft={verDraft} label="Certificate, test or work photos (optional)" />
           <button type="submit" disabled={ver.pending}>Save verification</button>
-          <ResultNotice result={ver.result} successText="Verification recorded." />
+          <ResultNotice result={ver.result} successText={`Verification recorded.${verNote}`} />
         </form>
       )}
       <form className="form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); add.run({ employeeId, skillId: String(f.get("s")), level: Number(f.get("l")), validFrom: f.get("from") ? String(f.get("from")) : undefined }); }}>
@@ -33,8 +41,9 @@ export function SkillForms({ employeeId, skills, records, canVerify, canRecordLe
           <div className="field"><label htmlFor="a-f">Valid from</label><input id="a-f" type="date" name="from" /></div>
         </div>
         <p className="small muted">New records start unverified and do not qualify for staffing until verified.</p>
+        <EvidenceUploader draft={addDraft} label="Photos of past work or a certificate (optional)" />
         <button type="submit" disabled={add.pending}>Add skill record</button>
-        <ResultNotice result={add.result} successText="Skill recorded (unverified)." />
+        <ResultNotice result={add.result} successText={`Skill recorded (unverified).${addNote}`} />
       </form>
       {canRecordLeave && (
         <form className="form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); leave.run({ employeeId, from: String(f.get("f")), to: String(f.get("t")), kind: String(f.get("k")) }); }}>

@@ -5,6 +5,7 @@ import { ResultNotice } from "@/components/ui/ResultNotice";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { Badge } from "@/components/ui/Badge";
 import { Notice } from "@/components/ui/Notice";
+import { EvidenceDisclosure, useAttachOnSave, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { when } from "@/lib/format";
 
 interface Clr { id: string; gate: string; status: string; approver: string | null; decided_at: number | null; expected_date: string | null; valid_until: string | null; evidence: string | null; version: number }
@@ -16,7 +17,6 @@ export function ClearanceStep({ visitId, clearances, exceptions, readiness, gate
 }) {
   const clr = useAction(setClearance);
   const exc = useAction(grantClearanceException);
-  const rdy = useAction(setReadinessCheck);
   return (
     <div className="stack">
       <Notice tone={gate.ok ? "ok" : "warn"} title={gate.ok ? "Firm booking is allowed by clearance" : "Firm booking and deployment are blocked"} items={[...gate.blockers, ...gate.exceptions]} />
@@ -71,30 +71,41 @@ export function ClearanceStep({ visitId, clearances, exceptions, readiness, gate
         <Notice tone={readinessGate.ok ? "ok" : "warn"} title={readinessGate.ok ? "All required checks pass" : "Deployment is blocked by readiness"} items={readinessGate.blockers} />
         <div className="table-wrap"><table>
           <thead><tr><th>Check</th><th>Required</th><th>Result</th><th>Verifier / evidence</th><th>Update</th></tr></thead>
-          <tbody>{readiness.map((r) => (
-            <tr key={r.check_code}>
-              <td>{r.check_code.replace(/_/g, " ")}</td><td>{r.required ? "Required" : "Optional"}</td>
-              <td><Badge state={r.result} />{r.na_reason && <div className="small muted">N/A: {r.na_reason}</div>}</td>
-              <td className="small">{r.verifier ?? "—"}{r.evidence ? ` · ${r.evidence}` : ""}</td>
-              <td>
-                <form className="row" onSubmit={(e) => {
-                  e.preventDefault();
-                  const f = new FormData(e.currentTarget);
-                  rdy.run({ visitId, checkCode: r.check_code, result: String(f.get("result")), evidence: String(f.get("evidence") || "") || undefined, naReason: String(f.get("evidence") || "") || undefined });
-                }}>
-                  <label className="sr-only" htmlFor={`rr-${r.check_code}`}>Result for {r.check_code}</label>
-                  <select id={`rr-${r.check_code}`} name="result" defaultValue={r.result} style={{ width: "auto" }}><option value="pending">Pending</option><option value="pass">Pass</option><option value="fail">Fail</option><option value="na">Not applicable</option></select>
-                  <label className="sr-only" htmlFor={`re-${r.check_code}`}>Evidence or N/A reason</label>
-                  <input id={`re-${r.check_code}`} name="evidence" placeholder="Evidence / N/A reason" style={{ width: 180 }} />
-                  <button type="submit" disabled={rdy.pending}>Save</button>
-                </form>
-              </td>
-            </tr>
-          ))}</tbody>
+          <tbody>{readiness.map((r) => <ReadinessRow key={r.check_code} visitId={visitId} r={r} />)}</tbody>
         </table></div>
-        <ResultNotice result={rdy.result} successText="Check saved." />
         <p className="small muted">Skill coverage passes only when current staffing actually meets the requirements; it cannot be declared.</p>
       </section>
     </div>
+  );
+}
+
+/** One readiness check: result, evidence text and optional site photos linked to that check. */
+function ReadinessRow({ visitId, r }: { visitId: string; r: Ready }) {
+  const rdy = useAction(setReadinessCheck);
+  const draft = useEvidenceDraft("readiness.check");
+  const note = useAttachOnSave(draft, "readiness_check", rdy.result?.ok ? (rdy.result.data as { id: string | null } | undefined)?.id : null);
+  return (
+    <tr>
+      <td>{r.check_code.replace(/_/g, " ")}</td><td>{r.required ? "Required" : "Optional"}</td>
+      <td><Badge state={r.result} />{r.na_reason && <div className="small muted">N/A: {r.na_reason}</div>}</td>
+      <td className="small">{r.verifier ?? "—"}{r.evidence ? ` · ${r.evidence}` : ""}</td>
+      <td>
+        <form className="stack" style={{ gap: 6 }} onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          rdy.run({ visitId, checkCode: r.check_code, result: String(f.get("result")), evidence: String(f.get("evidence") || "") || undefined, naReason: String(f.get("evidence") || "") || undefined });
+        }}>
+          <div className="row">
+            <label className="sr-only" htmlFor={`rr-${r.check_code}`}>Result for {r.check_code}</label>
+            <select id={`rr-${r.check_code}`} name="result" defaultValue={r.result} style={{ width: "auto" }}><option value="pending">Pending</option><option value="pass">Pass</option><option value="fail">Fail</option><option value="na">Not applicable</option></select>
+            <label className="sr-only" htmlFor={`re-${r.check_code}`}>Evidence or N/A reason</label>
+            <input id={`re-${r.check_code}`} name="evidence" placeholder="Evidence / N/A reason" style={{ width: 180 }} />
+            <button type="submit" disabled={rdy.pending}>Save</button>
+          </div>
+          <EvidenceDisclosure draft={draft} label="Site photos or video (optional)" />
+          <ResultNotice result={rdy.result} successText={`Check saved.${note}`} />
+        </form>
+      </td>
+    </tr>
   );
 }

@@ -6,12 +6,15 @@
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { substitute } from "@/app/actions";
+import { EvidenceDisclosure, useAttachOnSave, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 export function SubstitutionForm({ visitId, staffing, candidates, today }: {
   visitId: string; staffing: Array<{ employee_id: string; employee: string; business_id: string; state: string }>;
   candidates: Array<{ id: string; business_id: string; name: string; job_role: string; skills: string }>; today: string;
 }) {
   const a = useAction(substitute);
+  const draft = useEvidenceDraft("team.substitution");
+  const note = useAttachOnSave(draft, "substitution", a.result?.ok ? (a.result.data as { id: string }).id : null);
   const booked = staffing.filter((m) => m.state === "held" || m.state === "confirmed");
   const others = candidates.filter((c) => !booked.some((m) => m.employee_id === c.id));
   return (
@@ -27,8 +30,9 @@ export function SubstitutionForm({ visitId, staffing, candidates, today }: {
           <div className="field"><label htmlFor="sb-t">From time</label><input id="sb-t" name="t" type="time" defaultValue="09:00" required /></div>
         </div>
         <div className="field"><label htmlFor="sb-r">Reason</label><input id="sb-r" name="r" required minLength={5} placeholder="For example: approved leave from Thursday" /></div>
+        <EvidenceDisclosure draft={draft} label="Photo of a medical note or message (optional)" />
         <div><button type="submit" className="primary" disabled={a.pending || booked.length === 0}>Replace</button></div>
-        <ResultNotice result={a.result} successText="Replaced. The outgoing booking now ends at the chosen moment and the history keeps both." />
+        <ResultNotice result={a.result} successText={`Replaced. The outgoing booking now ends at the chosen moment and the history keeps both.${note}`} />
       </form>
     </section>
   );

@@ -17,7 +17,7 @@ import { iso, one, parse, zId, type Ctx } from "./context";
 export const EVIDENCE_LIMITS = { imageBytes: 15 * 1024 * 1024, videoBytes: 200 * 1024 * 1024, filesPerForm: 10 } as const;
 export const PARENT_TYPES = ["progress_event", "visit_task", "attendance_event", "shift_instance", "attendance_correction", "time_entry", "ot_request", "expense",
   "leave_request", "delay_event", "readiness_check", "schedule_day", "quality_case", "issue", "acceptance", "additional_work", "package_exception", "design_request",
-  "communication_log", "employee_skill", "site_restriction", "appliance_dependency"] as const;
+  "communication_log", "employee_skill", "site_restriction", "appliance_dependency", "quantity_snapshot", "substitution", "scan_event", "design_revision"] as const;
 export type ParentType = (typeof PARENT_TYPES)[number];
 
 /** Where each parent type's project lives, for project-scoped records. */
@@ -36,6 +36,10 @@ const PROJECT_OF: Partial<Record<ParentType, string>> = {
   communication_log: "select project_id from communication_log where id = $1",
   site_restriction: "select project_id from site_restriction where id = $1",
   appliance_dependency: "select project_id from appliance_dependency where id = $1",
+  quantity_snapshot: "select o.project_id from quantity_snapshot qs join component c on c.id = qs.component_id join order_item oi on oi.id = c.order_item_id join sales_order o on o.id = oi.order_id where qs.id = $1",
+  substitution: "select v.project_id from substitution s join visit v on v.id = s.visit_id where s.id = $1",
+  scan_event: "select p.project_id from scan_event s join package p on p.id = s.package_id where s.id = $1",
+  design_revision: "select r.project_id from design_revision dr join design_request r on r.id = dr.request_id where dr.id = $1",
 };
 /** Where each parent type's owning employee lives, for personal records. */
 const OWNER_OF: Partial<Record<ParentType, string>> = {

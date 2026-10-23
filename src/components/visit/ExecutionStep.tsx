@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Notice } from "@/components/ui/Notice";
 import { qty, when } from "@/lib/format";
 import { useState } from "react";
-import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { EvidenceDisclosure, EvidenceUploader, attachmentNote, useAttachOnSave, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 
 interface V { id: string; version: number; exec_status: string; planned_start: string | null; planned_end: string | null; timezone: string }
 interface ScopeRow { id: string; task: string; component: string; activity: string; unit: string; scoped: string; kind: string; status: string; accepted: string }
@@ -20,7 +20,6 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
   acceptance: Array<{ signed_off: boolean; signed_by_name: string | null; accepted_on: string | null; evidence: string | null }>;
   gate: { ok: boolean; blockers: string[] }; readinessGate: { ok: boolean; blockers: string[] }; role: string;
 }) {
-  const prog = useAction(recordProgress);
   const tgt = useAction(setDailyTarget);
   const dDraft = useEvidenceDraft("delay.record");
   const aDraft = useEvidenceDraft("acceptance.record");
@@ -62,19 +61,13 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
                 <td>{s.task}<div className="small muted">{s.component} · {s.activity} · {s.kind}</div>{s.status !== "active" && <Badge state={s.status === "transferred" ? "released" : "cancelled"} label={s.status} />}</td>
                 <td className="num">{qty(s.scoped)} {s.unit}</td><td className="num">{qty(s.accepted)}</td><td className="num"><strong>{qty(remaining)}</strong></td>
                 <td>{s.status === "active" && ["in_progress", "completed"].includes(visit.exec_status) && (
-                  <form className="row" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); prog.run({ visitTaskId: s.id, quantityDelta: String(f.get("q")), evidence: String(f.get("ev") || "") || undefined }); e.currentTarget.reset(); }}>
-                    <label className="sr-only" htmlFor={`q-${s.id}`}>Quantity completed for {s.task}</label>
-                    <input id={`q-${s.id}`} name="q" inputMode="decimal" pattern="\d+(\.\d{1,6})?" required style={{ width: 90 }} />
-                    <label className="sr-only" htmlFor={`ev-${s.id}`}>Evidence</label><input id={`ev-${s.id}`} name="ev" placeholder="Evidence" style={{ width: 140 }} />
-                    <button type="submit" disabled={prog.pending}>Add</button>
-                  </form>
+                  <ProgressForm visitTaskId={s.id} task={s.task} />
                 )}</td>
                 {manager && <td>{s.status === "active" && remaining > 0 && <ActionButton action={transferOutstandingScope} input={{ visitTaskId: s.id, reason: "Transferred to a follow-up visit" }} label="Transfer remaining" confirm="Move this task's unaccepted quantity out of this visit so a follow-up can take it." />}</td>}
               </tr>
             );
           })}</tbody>
         </table></div>
-        <ResultNotice result={prog.result} successText="Progress recorded." />
         <details><summary>Progress history ({progress.length})</summary>
           <div className="table-wrap"><table>
             <thead><tr><th>When</th><th>Task</th><th className="num">Δ quantity</th><th>By</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
@@ -178,5 +171,24 @@ export function ExecutionStep({ visit, scope, targets, progress, delays, accepta
         </section>
       </div>
     </div>
+  );
+}
+
+/** Output for one task, with optional photos/videos linked to that progress event. */
+function ProgressForm({ visitTaskId, task }: { visitTaskId: string; task: string }) {
+  const prog = useAction(recordProgress);
+  const draft = useEvidenceDraft("progress.quantity");
+  const note = useAttachOnSave(draft, "progress_event", prog.result?.ok ? (prog.result.data as { id: string }).id : null);
+  return (
+    <form className="stack" style={{ gap: 6 }} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); prog.run({ visitTaskId, quantityDelta: String(f.get("q")), evidence: String(f.get("ev") || "") || undefined }); e.currentTarget.reset(); }}>
+      <div className="row">
+        <label className="sr-only" htmlFor={`q-${visitTaskId}`}>Quantity completed for {task}</label>
+        <input id={`q-${visitTaskId}`} name="q" inputMode="decimal" pattern="\d+(\.\d{1,6})?" required style={{ width: 90 }} />
+        <label className="sr-only" htmlFor={`ev-${visitTaskId}`}>Evidence</label><input id={`ev-${visitTaskId}`} name="ev" placeholder="Evidence" style={{ width: 140 }} />
+        <button type="submit" disabled={prog.pending}>Add</button>
+      </div>
+      <EvidenceDisclosure draft={draft} label="Photos or video" />
+      <ResultNotice result={prog.result} successText={`Progress recorded.${note}`} />
+    </form>
   );
 }

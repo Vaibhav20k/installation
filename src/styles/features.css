@@ -162,6 +162,8 @@ body:has(.nav-pending.on)::before { content: ""; position: fixed; top: 0; left: 
 @media (min-width: 960px) { .evidence-caption { font-size: 13px; } }
 .evidence-item-actions { display: flex; gap: 4px; }
 .icon-btn { width: 40px; min-height: 40px; padding: 0; }
+.evidence-disclosure > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-2); min-height: 40px; display: flex; align-items: center; }
+.evidence-disclosure[open] > summary { margin-bottom: 6px; }
 .evidence-summary { margin: 0; font-size: 12.5px; color: var(--ink-2); }
 .evidence-gallery { margin: 8px 0 0; }
 .evidence-gallery ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
@@ -232,3 +234,9 @@ body:has(.nav-pending.on)::before { content: ""; position: fixed; top: 0; left: 
 .team-replace { grid-column: 2 / -1; justify-self: start; min-height: 36px; font-size: 13px; }
 @media (min-width: 560px) { .team-row { grid-template-columns: 30px 1fr auto auto; } .team-replace { grid-column: auto; } }
 .team-form { display: grid; gap: 10px; margin-top: 10px; padding: 12px; background: var(--plate-2); border-radius: var(--radius); }
+
+/* Saved sheet filters: compact chips with a delete control. */
+.saved-filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.saved-filter { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--rule-strong); border-radius: var(--radius); padding-left: 10px; font-size: 13px; }
+.saved-filter a[aria-current="true"] { font-weight: 700; }
+.pager { justify-content: space-between; align-items: center; padding-top: 4px; }

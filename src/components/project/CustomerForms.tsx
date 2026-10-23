@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
-import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { EvidenceDisclosure, EvidenceUploader, attachmentNote, useAttachOnSave, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { addDesignRevision, addObligation, completeObligation, createDesignRequest, decideDesignRequest, logCommunication, setJourney } from "@/app/actions";
 
 const val = (f: FormData, k: string) => { const v = String(f.get(k) ?? "").trim(); return v || undefined; };
@@ -105,13 +105,16 @@ export function DesignRequestForm({ projectId, items }: { projectId: string; ite
 
 export function RevisionForm({ requestId, limit }: { requestId: string; limit: number | null }) {
   const a = useAction(addDesignRevision);
-  const r = a.result?.ok ? (a.result.data as { seq: number; needsEscalation: boolean; limitConfigured: boolean }) : null;
+  const r = a.result?.ok ? (a.result.data as { id: string; seq: number; needsEscalation: boolean; limitConfigured: boolean }) : null;
+  const draft = useEvidenceDraft("design.revision");
+  const note = useAttachOnSave(draft, "design_revision", r?.id);
   return (
-    <form className="row" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); a.run({ requestId, cause: val(f, "c"), reason: val(f, "r") }); }}>
+    <form className="row" style={{ flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); a.run({ requestId, cause: val(f, "c"), reason: val(f, "r") }); }}>
       <div className="field"><label htmlFor={`rv-c-${requestId}`}>Cause</label><select id={`rv-c-${requestId}`} name="c"><option value="customer_change">Customer changed the brief</option><option value="sales_change">Sales changed the brief</option><option value="designer_correction">Designer correction</option><option value="site_measurement">Site measurement</option></select></div>
       <div className="field" style={{ flex: 1, minWidth: 180 }}><label htmlFor={`rv-r-${requestId}`}>Reason</label><input id={`rv-r-${requestId}`} name="r" required minLength={3} /></div>
       <button type="submit" style={{ alignSelf: "flex-end" }} disabled={a.pending}>Add revision</button>
-      <ResultNotice result={a.result} successText={r ? `Revision ${r.seq} added.${r.needsEscalation ? " Past the approved limit: needs escalation." : ""}${limit === null ? " No revision limit is configured, so nothing is blocked." : ""}` : "Added."} />
+      <div style={{ flexBasis: "100%" }}><EvidenceDisclosure draft={draft} label="Marked-up drawing or site photo (optional)" /></div>
+      <ResultNotice result={a.result} successText={r ? `Revision ${r.seq} added.${r.needsEscalation ? " Past the approved limit: needs escalation." : ""}${limit === null ? " No revision limit is configured, so nothing is blocked." : ""}${note}` : "Added."} />
     </form>
   );
 }

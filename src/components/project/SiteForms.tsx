@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
-import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { EvidenceDisclosure, EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { addContact, addEffortDriver, exceptAppliance, saveAppliance, setQuantitySnapshot, setSiteRestriction } from "@/app/actions";
 
 const val = (f: FormData, k: string) => { const v = String(f.get(k) ?? "").trim(); return v || undefined; };
@@ -28,6 +28,7 @@ export function ContactForm({ projectId }: { projectId: string }) {
 
 export function QuantityForm({ components }: { components: Array<{ id: string; label: string; unit: string; quantityKind: string }> }) {
   const a = useAction(setQuantitySnapshot);
+  const draft = useEvidenceDraft("site.measurement");
   const [cid, setCid] = useState(components[0]?.id ?? "");
   const c = components.find((x) => x.id === cid);
   const [basis, setBasis] = useState<"net" | "gross">("net");
@@ -47,8 +48,10 @@ export function QuantityForm({ components }: { components: Array<{ id: string; l
         <div className="field"><label htmlFor="qs-sr">Source revision</label><input id="qs-sr" name="sr" /></div>
       </div>
       <p className="small muted" style={{ margin: 0 }}>{basis === "net" ? `Net uses the component's own unit and kind (${c?.unit}, ${c?.quantityKind}).` : "Gross is recorded as sourced. It is never converted from net, and never used to calculate time."}</p>
+      <EvidenceUploader draft={draft} label="Measurement photos or video (optional)" />
       <div><button type="submit" disabled={a.pending || !cid}>Record quantity</button></div>
       <ResultNotice result={a.result} successText="Recorded. The previous value stays in history." />
+      <AttachOnSuccess result={a.result} draft={draft} parentType="quantity_snapshot" />
     </form>
   );
 }
@@ -125,12 +128,17 @@ export function ApplianceForm({ projectId, items, existing }: { projectId: strin
 
 export function ApplianceException({ id }: { id: string }) {
   const a = useAction(exceptAppliance);
+  const draft = useEvidenceDraft("appliance.exception");
   return (
-    <form className="row" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); a.run({ id, reason: val(f, "r") }); }}>
-      <label className="sr-only" htmlFor={`ax-${id}`}>Reason to proceed anyway</label>
-      <input id={`ax-${id}`} name="r" required minLength={5} placeholder="Why work can proceed anyway" style={{ flex: 1, minWidth: 180 }} />
-      <button type="submit" disabled={a.pending}>Record exception</button>
+    <form className="stack" style={{ gap: 6 }} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); a.run({ id, reason: val(f, "r") }); }}>
+      <div className="row">
+        <label className="sr-only" htmlFor={`ax-${id}`}>Reason to proceed anyway</label>
+        <input id={`ax-${id}`} name="r" required minLength={5} placeholder="Why work can proceed anyway" style={{ flex: 1, minWidth: 180 }} />
+        <button type="submit" disabled={a.pending}>Record exception</button>
+      </div>
+      <EvidenceDisclosure draft={draft} />
       <ResultNotice result={a.result} successText="Exception recorded. The dependency stays listed as a risk." />
+      <AttachOnSuccess result={a.result} draft={draft} parentType="appliance_dependency" />
     </form>
   );
 }

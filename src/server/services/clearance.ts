@@ -135,5 +135,6 @@ export async function setReadinessCheck(ctx: Ctx, input: unknown) {
        where visit_id = $1 and check_code = $2 and component_id is null returning id`,
       [d.visitId, d.checkCode, d.result, d.required ?? null, d.naReason ?? null, d.evidence ?? null, d.validUntil ?? null, ctx.actor.id]);
     await audit(q, { actorId: ctx.actor.id, action: "readiness_check", objectType: "readiness_check", objectId: rows[0]?.id ?? d.visitId, after: d, correlationId: ctx.correlationId });
+    return { id: rows[0]?.id ?? null };
   });
 }

@@ -3,7 +3,7 @@ import { closeAction, closeQualityCase, createIssue, openQualityCase, reopenQual
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { useState } from "react";
-import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { AttachToRecord, EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { Badge } from "@/components/ui/Badge";
 
 const FUNCTIONS = ["Factory", "Purchase", "Logistics", "Services", "Site", "Installation", "Customer", "Unknown"];
@@ -18,7 +18,9 @@ export function QualityPanel({ projectId, quality, issues, orders, actorId }: {
   const open = useAction(openQualityCase, { onSuccess: async (d) => setQNote(attachmentNote(await qDraft.attach("quality_case", (d as { id: string }).id))) });
   const close = useAction(closeQualityCase);
   const reopen = useAction(reopenQualityCase);
-  const issue = useAction(createIssue);
+  const iDraft = useEvidenceDraft("issue.raise");
+  const [iNote, setINote] = useState("");
+  const issue = useAction(createIssue, { onSuccess: async (d) => setINote(attachmentNote(await iDraft.attach("issue", (d as { id: string }).id))) });
   const closeIssue = useAction(closeAction);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   return (
@@ -34,6 +36,7 @@ export function QualityPanel({ projectId, quality, issues, orders, actorId }: {
               <td>
                 {q.status !== "closed" && <form className="row" onSubmit={(e) => { e.preventDefault(); close.run({ caseId: q.id, closedOn: today, closureEvidence: String(new FormData(e.currentTarget).get("ev")) }); }}>
                   <label className="sr-only" htmlFor={`qe-${q.id}`}>Closure evidence</label><input id={`qe-${q.id}`} name="ev" placeholder="Closure evidence" required style={{ width: 150 }} /><button type="submit">Close</button></form>}
+                <AttachToRecord parentType="quality_case" id={q.id} context="quality.closure" label="Photos or video" />
                 {q.status === "closed" && <button type="button" onClick={() => reopen.run({ caseId: q.id, reportedOn: today, category: "Repeat complaint" })}>Reopen (new linked case)</button>}
               </td>
             </tr>
@@ -72,6 +75,7 @@ export function QualityPanel({ projectId, quality, issues, orders, actorId }: {
               <td><Badge state={i.status === "closed" ? "closed" : "open"} label={i.status.replace("_", " ")} />
                 {i.status !== "closed" && <form className="row" style={{ marginTop: 4 }} onSubmit={(e) => { e.preventDefault(); closeIssue.run({ issueId: i.id, closedOn: today, closureEvidence: String(new FormData(e.currentTarget).get("ev")), version: i.version }); }}>
                   <label className="sr-only" htmlFor={`ie-${i.id}`}>Closure evidence</label><input id={`ie-${i.id}`} name="ev" placeholder="Evidence" required style={{ width: 120 }} /><button type="submit">Close</button></form>}
+                <AttachToRecord parentType="issue" id={i.id} context="issue.action" label="Photos or video" />
               </td>
             </tr>
           ))}</tbody>
@@ -92,9 +96,10 @@ export function QualityPanel({ projectId, quality, issues, orders, actorId }: {
           <div className="field"><label htmlFor="i-d">Description</label><textarea id="i-d" name="d" required minLength={5} /></div>
           <div className="field"><label htmlFor="i-im">Impact on installation</label><input id="i-im" name="im" /></div>
           <div className="field"><label htmlFor="i-na">Next action</label><input id="i-na" name="na" /></div>
+          <EvidenceUploader draft={iDraft} />
           <p className="small muted">You are recorded as the named owner of this action.</p>
           <button type="submit" disabled={issue.pending}>Raise issue</button>
-          <ResultNotice result={issue.result} successText="Issue raised." />
+          <ResultNotice result={issue.result} successText={`Issue raised.${iNote}`} />
         </form>
       </section>
     </div>

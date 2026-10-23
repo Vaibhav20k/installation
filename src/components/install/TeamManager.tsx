@@ -10,6 +10,7 @@ import { ArrowsLeftRight, UserPlus, X } from "@phosphor-icons/react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { Badge } from "@/components/ui/Badge";
+import { EvidenceDisclosure, useAttachOnSave, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
 import { addCrewMember, substitute } from "@/app/actions";
 
 interface Member { id: string; business_id: string; name: string; job_role: string; state: string; from: string; until: string }
@@ -36,6 +37,8 @@ function PersonPicker({ id, candidates, name }: { id: string; candidates: Candid
 
 function ReplaceForm({ visitId, member, candidates, onClose }: { visitId: string; member: Member; candidates: Candidate[]; onClose: () => void }) {
   const a = useAction(substitute);
+  const draft = useEvidenceDraft("team.substitution");
+  const note = useAttachOnSave(draft, "substitution", a.result?.ok ? (a.result.data as { id: string }).id : null);
   const [why, setWhy] = useState(REASONS[0]!);
   const n = nowLocal();
   const done = a.result?.ok ? (a.result.data as { wholeBooking: boolean }) : null;
@@ -53,8 +56,9 @@ function ReplaceForm({ visitId, member, candidates, onClose }: { visitId: string
       {why === "Other"
         ? <div className="field"><label htmlFor={`rp-o-${member.id}`}>Specific reason</label><input id={`rp-o-${member.id}`} name="other" required minLength={5} /></div>
         : <div className="field"><label htmlFor={`rp-n-${member.id}`}>Note (optional)</label><input id={`rp-n-${member.id}`} name="note" /></div>}
+      <EvidenceDisclosure draft={draft} label="Photo of a medical note or message (optional)" />
       <div className="row"><button type="submit" className="primary" disabled={a.pending}>Replace</button><button type="button" onClick={onClose}>Cancel</button></div>
-      <ResultNotice result={a.result} successText={done?.wholeBooking ? "Replaced for the whole booking (the visit had not started for them)." : "Replaced from the chosen time. History keeps both people."} />
+      <ResultNotice result={a.result} successText={`${done?.wholeBooking ? "Replaced for the whole booking (the visit had not started for them)." : "Replaced from the chosen time. History keeps both people."}${note}`} />
     </form>
   );
 }

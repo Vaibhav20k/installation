@@ -123,9 +123,9 @@ export async function setActivity(ctx: Ctx, input: unknown) {
     if (!sum.open) throw conflict("Clock in first.");
     if (sum.activity === d.activity) return { activity: d.activity };
     if (d.activity === "idle" && !d.note?.trim()) throw validation("Say what is holding the work up (power, access, material…).", ["note: required"]);
-    await q.query("insert into attendance_event(shift_id, kind, activity, effective_at, actor_id, note, shift_revision) values ($1,'activity',$2,$3,$4,$5,$6)",
+    const [ev] = await q.query<{ id: string }>("insert into attendance_event(shift_id, kind, activity, effective_at, actor_id, note, shift_revision) values ($1,'activity',$2,$3,$4,$5,$6) returning id",
       [s.id, d.activity, iso(ctx.now), ctx.actor.id, d.note ?? null, s.revision]);
-    return { activity: d.activity };
+    return { activity: d.activity, eventId: ev!.id };
   });
 }
 

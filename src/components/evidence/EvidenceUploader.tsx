@@ -4,8 +4,8 @@
  * switching tabs or clocking out never waits for them. Use with useEvidenceDraft: after the record saves,
  * call attach(parentType, parentId) and the files link to that exact record (now, or when they finish).
  */
-import { useCallback, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowClockwise, Camera, FilmStrip, Image as ImageIcon, Trash, VideoCamera } from "@phosphor-icons/react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowClockwise, Camera, FilmStrip, Image as ImageIcon, Trash, VideoCamera, X } from "@phosphor-icons/react";
 import { uploadQueue, type QueueItem } from "@/lib/upload-queue";
 
 const empty: QueueItem[] = [];
@@ -27,7 +27,45 @@ export function useEvidenceDraft(context: string) {
   return { draftKey, context, items, attach };
 }
 
+/** Links the draft's files once the record has saved (id set), and returns the honest note for the success message. */
+export function useAttachOnSave(draft: ReturnType<typeof useEvidenceDraft>, parentType: string, id: string | null | undefined) {
+  const [note, setNote] = useState("");
+  const done = useRef<string | null>(null);
+  useEffect(() => { if (id && done.current !== id) { done.current = id; void draft.attach(parentType, id).then((r) => setNote(attachmentNote(r))); } }, [id, draft, parentType]);
+  return note;
+}
+
 const STATE_TEXT: Record<QueueItem["state"], string> = { queued: "Waiting", uploading: "Uploading", validating: "Checking", ready: "Ready", failed: "Failed", cancelled: "Cancelled" };
+
+/** Collapsed variant for dense places (table rows, quick actions): the controls open on demand. */
+export function EvidenceDisclosure({ draft, label = "Add photos or video (optional)" }: { draft: ReturnType<typeof useEvidenceDraft>; label?: string }) {
+  return (
+    <details className="evidence-disclosure" open={draft.items.length > 0 || undefined}>
+      <summary>{label}{draft.items.length ? ` · ${draft.items.length}` : ""}</summary>
+      <EvidenceUploader draft={draft} label={label} />
+    </details>
+  );
+}
+
+/** Photos/videos added to a record that already exists (an activity switch, an overtime reason): pick, then attach. */
+export function AttachToRecord({ parentType, id, context, label }: { parentType: string; id: string; context: string; label: string }) {
+  const draft = useEvidenceDraft(context);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const usable = draft.items.some((i) => i.state !== "failed" && i.state !== "cancelled");
+  return (
+    <details className="evidence-disclosure">
+      <summary>{label}</summary>
+      <div className="stack" style={{ gap: 8 }}>
+        <EvidenceUploader draft={draft} label={label} />
+        <div className="row">
+          <button type="button" disabled={!usable || busy} onClick={async () => { setBusy(true); setNote(attachmentNote(await draft.attach(parentType, id)).trim()); setBusy(false); }}>Attach</button>
+          {note && <span className="small muted" role="status">{note}</span>}
+        </div>
+      </div>
+    </details>
+  );
+}
 
 export function EvidenceUploader({ draft, label = "Photos or video (optional)" }: { draft: ReturnType<typeof useEvidenceDraft>; label?: string }) {
   const id = useId();
@@ -67,7 +105,9 @@ export function EvidenceUploader({ draft, label = "Photos or video (optional)" }
                 </span>
                 <span className="evidence-item-actions">
                   {i.state === "failed" && <button type="button" className="icon-btn" onClick={() => uploadQueue.retry(i.id)} aria-label={`Retry ${i.name}`}><ArrowClockwise size={16} /></button>}
-                  <button type="button" className="icon-btn" onClick={() => uploadQueue.remove(i.id)} aria-label={`Remove ${i.name}`}><Trash size={16} /></button>
+                  {i.state === "queued" || i.state === "uploading"
+                    ? <button type="button" className="icon-btn" onClick={() => uploadQueue.remove(i.id)} aria-label={`Cancel upload of ${i.name}`} title="Cancel upload"><X size={16} /></button>
+                    : <button type="button" className="icon-btn" onClick={() => uploadQueue.remove(i.id)} aria-label={`Remove ${i.name}`}><Trash size={16} /></button>}
                 </span>
               </li>
             ))}
