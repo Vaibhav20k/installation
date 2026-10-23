@@ -11,11 +11,17 @@ import { layoutSchedule, type ScheduleStep } from "@/domain/install-schedule";
 import { loadVisit } from "./plan-support";
 import { iso, one, parse, zDate, zId, type Ctx } from "./context";
 
-export async function scheduleCalendar(q: Queryable) {
+export async function scheduleCalendar(q: Queryable, projectId?: string) {
   const [cal] = await q.query<{ week_pattern: Record<string, unknown> }>("select week_pattern from work_calendar order by created_at limit 1");
   const workingWeekdays = Object.keys(cal?.week_pattern ?? { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 }).map(Number);
   const holidays = Object.fromEntries((await q.query<{ date: string; name: string }>("select date::text, name from holiday")).map((h) => [h.date, h.name]));
-  return { workingWeekdays, holidays };
+  return { workingWeekdays, holidays, siteWeekdays: projectId ? await siteWeekdays(q, projectId) : undefined };
+}
+
+/** Weekdays the site allows work on, from its current recorded window; undefined when no window is recorded. */
+export async function siteWeekdays(q: Queryable, projectId: string): Promise<number[] | undefined> {
+  const [r] = await q.query<{ allowed_weekdays: number[] }>("select allowed_weekdays from site_restriction where project_id = $1 and active order by created_at desc limit 1", [projectId]);
+  return r?.allowed_weekdays;
 }
 
 export async function applySchedule(ctx: Ctx, input: unknown) {
@@ -28,8 +34,8 @@ export async function applySchedule(ctx: Ctx, input: unknown) {
     const t = await one<{ steps: ScheduleStep[]; name: string }>(q, "select steps, name from schedule_template where code = $1", [d.templateCode], "Schedule template");
     const [started] = await q.query("select 1 from visit_schedule_day where visit_id = $1 and status <> 'planned' limit 1", [d.visitId]);
     if (started) throw conflict("Days on this schedule are already ticked off; adjust days individually instead of replacing it.");
-    const { workingWeekdays, holidays } = await scheduleCalendar(q);
-    const days = layoutSchedule(t.steps, d.startDate, workingWeekdays, holidays);
+    const { workingWeekdays, holidays, siteWeekdays: siteDays } = await scheduleCalendar(q, v.project_id);
+    const days = layoutSchedule(t.steps, d.startDate, workingWeekdays, holidays, siteDays);
     if (!days.length) throw validation("The template has no working days.");
     await q.query("delete from visit_schedule_day where visit_id = $1", [d.visitId]);
     for (const day of days) {

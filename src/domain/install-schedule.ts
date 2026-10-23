@@ -7,15 +7,19 @@ import { addDays, weekday, type LocalDate } from "@/lib/dates";
 export interface ScheduleStep { name: string; days: number }
 export interface ScheduleDay { date: LocalDate; kind: "work" | "off"; stepNo: number | null; stepName: string | null; offReason: string | null }
 
-/** Lays steps out from `start`; the first scheduled day is the first working day on or after it. */
-export function layoutSchedule(steps: ScheduleStep[], start: LocalDate, workingWeekdays: number[], holidays: Record<LocalDate, string>): ScheduleDay[] {
+/**
+ * Lays steps out from `start`; the first scheduled day is the first working day on or after it.
+ * `siteWeekdays` (the site's recorded working window) closes otherwise-working days, e.g. a society that bars Sunday work.
+ */
+export function layoutSchedule(steps: ScheduleStep[], start: LocalDate, workingWeekdays: number[], holidays: Record<LocalDate, string>, siteWeekdays?: number[]): ScheduleDay[] {
   const out: ScheduleDay[] = [];
   const queue = steps.flatMap((s, i) => Array.from({ length: s.days }, () => ({ no: i + 1, name: s.name })));
   let d = start;
   while (queue.length) {
     const holiday = holidays[d];
-    if (holiday || !workingWeekdays.includes(weekday(d))) {
-      if (out.length) out.push({ date: d, kind: "off", stepNo: null, stepName: null, offReason: holiday ?? "Weekly off" });
+    const siteClosed = !!siteWeekdays && !siteWeekdays.includes(weekday(d));
+    if (holiday || !workingWeekdays.includes(weekday(d)) || siteClosed) {
+      if (out.length) out.push({ date: d, kind: "off", stepNo: null, stepName: null, offReason: holiday ?? (workingWeekdays.includes(weekday(d)) ? "Site closed (site rule)" : "Weekly off") });
     } else {
       const s = queue.shift()!;
       out.push({ date: d, kind: "work", stepNo: s.no, stepName: s.name, offReason: null });

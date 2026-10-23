@@ -108,10 +108,15 @@ describe("team changes from the installation page (user request, 23 Oct)", () =>
 
   it("replacing someone before their booking starts hands over the whole booking", async () => {
     const v = await idOf(db, "visit", "VIS-005");
-    const [out] = await db.query<{ employee_id: string; lo: number; hi: number }>("select employee_id, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and state = 'confirmed' order by employee_id limit 1", [v]);
+    const team = await db.query<{ employee_id: string; lo: number; hi: number }>("select employee_id, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and state = 'confirmed' order by employee_id", [v]);
     const [inc] = await free("VIS-005", "2026-10-20", "2026-10-25");
-    const r = await substitute(await as("EMP-001"), { visitId: v, outgoingId: out!.employee_id, incomingId: inc!, date: "2026-10-16", time: "09:00", reason: "Sick: cannot join this visit" });
-    expect(r.wholeBooking).toBe(true);
+    // The incoming person may lack a skill only one member holds; that replacement is refused (rolled back), so try the next.
+    let out: (typeof team)[number] | undefined, r: Awaited<ReturnType<typeof substitute>> | undefined;
+    for (const m of team) {
+      try { r = await substitute(await as("EMP-001"), { visitId: v, outgoingId: m.employee_id, incomingId: inc!, date: "2026-10-16", time: "09:00", reason: "Sick: cannot join this visit" }); out = m; break; }
+      catch (e) { if (!(e instanceof AppError && e.kind === "validation")) throw e; }
+    }
+    expect(r?.wholeBooking).toBe(true);
     const rows = await db.query<{ employee_id: string; state: string; lo: number; hi: number }>("select employee_id, state, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and employee_id = any($2::uuid[])", [v, [out!.employee_id, inc!]]);
     expect(rows.find((x) => x.employee_id === out!.employee_id)!.state).toBe("released");
     const n = rows.find((x) => x.employee_id === inc!)!;

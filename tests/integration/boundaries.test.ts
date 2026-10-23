@@ -4,7 +4,7 @@ import { loadActor } from "@/server/auth/actor";
 import { makeCtx } from "@/server/services/context";
 import { applyImport, previewImport } from "@/server/services/imports";
 import { addTravelLeg } from "@/server/services/travel";
-import { createPlan, createVisit, setSkillRequirements } from "@/server/services/planning";
+import { createPlan, createVisit, setSkillRequirements, updateVisitDates } from "@/server/services/planning";
 import { holdCapacity, setVisitStaffing, suggestTeamsForVisit } from "@/server/services/booking";
 import { proposeScheduleRevision } from "@/server/services/execution";
 import { amendTimeEntry, createTimeEntry, reviewTimeEntry, submitTimeEntries } from "@/server/services/time";
@@ -66,6 +66,9 @@ describe("travel, delays and truthful time capture", () => {
     await setSkillRequirements(sup, { visitId: v.id, requirements: [{ skillId: skill, minLevel: 1, headcount: 3, mode: "collective" }] });
     const opts = await suggestTeamsForVisit(sup, { visitId: v.id });
     await setVisitStaffing(sup, { visitId: v.id, employeeIds: opts.earliest!.memberIds });
+    // Reachability: arriving after the start date, or leaving before the last work day, is refused (checklist phase 6).
+    expect(await kind(addTravelLeg(sup, { visitId: v.id, kind: "outbound", origin: "Delhi", destination: "Jaipur", plannedDepart: "2026-12-02T20:00:00Z", plannedArrive: "2026-12-03T02:00:00Z" }))).toBe("validation");
+    expect(await kind(addTravelLeg(sup, { visitId: v.id, kind: "return", origin: "Jaipur", destination: "Delhi", plannedDepart: "2026-12-02T10:00:00Z", plannedArrive: "2026-12-02T16:00:00Z" }))).toBe("validation");
     await addTravelLeg(sup, { visitId: v.id, kind: "outbound", origin: "Delhi", destination: "Jaipur", plannedDepart: "2026-12-01T03:30:00Z", plannedArrive: "2026-12-01T09:30:00Z" });
     await addTravelLeg(sup, { visitId: v.id, kind: "return", origin: "Jaipur", destination: "Delhi", plannedDepart: "2026-12-04T03:30:00Z", plannedArrive: "2026-12-04T09:30:00Z" });
     const [row] = await db.query<{ departure_at: number; return_at: number; outstation: boolean }>("select departure_at, return_at, outstation from visit where id = $1", [v.id]);
@@ -84,6 +87,15 @@ describe("travel, delays and truthful time capture", () => {
     expect(sameDay.every((o) => !o.memberIds.some((id) => team.includes(id)))).toBe(true);
     // A booked leg outside the held occupancy is refused.
     expect(await kind(addTravelLeg(sup, { visitId: v.id, kind: "return", origin: "Jaipur", destination: "Delhi", plannedDepart: "2026-12-05T03:30:00Z", plannedArrive: "2026-12-05T09:30:00Z" }))).toBe("conflict");
+  });
+
+  it("visit dates must keep departure, installation and return in order (checklist phase 6)", async () => {
+    const sup = await as("EMP-008");
+    const plan = await createPlan(sup, { projectId: await idOf(db, "project", "PRJ-002") });
+    const v = await createVisit(sup, { planId: plan.id, visitType: "fresh", plannedStart: "2026-12-10", plannedEnd: "2026-12-12", orderIds: [await idOf(db, "sales_order", "ORD-003")] });
+    expect(await kind(updateVisitDates(sup, { visitId: v.id, plannedStart: "2026-12-10", plannedEnd: "2026-12-12", departureAt: "2026-12-11T03:30:00Z", returnAt: "2026-12-13T09:00:00Z" }))).toBe("validation");
+    expect(await kind(updateVisitDates(sup, { visitId: v.id, plannedStart: "2026-12-10", plannedEnd: "2026-12-12", departureAt: "2026-12-09T03:30:00Z", returnAt: "2026-12-11T09:00:00Z" }))).toBe("validation");
+    expect(await kind(updateVisitDates(sup, { visitId: v.id, plannedStart: "2026-12-10", plannedEnd: "2026-12-12", departureAt: "2026-12-09T03:30:00Z", returnAt: "2026-12-13T09:00:00Z" }))).toBe("ok");
   });
 
   it("scenario 28: a delay revision proposal shows conflicts and cost impact without moving anything", async () => {

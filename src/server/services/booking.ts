@@ -10,9 +10,10 @@ import { requireProjectScope, requireRole, type PermissionRole } from "../auth/p
 import { conflict, forbidden, validation } from "../errors";
 import { addDays, dayDiff, localDateOf, datesBetween, startOfLocalDay } from "@/lib/dates";
 import { durationMinutes, intersect, type Interval } from "@/domain/intervals";
-import { evaluateCoverage, type EmployeeSkillRecord, type Level, type SkillRequirement } from "@/domain/skills";
+import { coverageByPeriod, type EmployeeSkillRecord, type Level, type SkillRequirement } from "@/domain/skills";
 import { evaluateTeam, suggestTeams, type Candidate, type SuggestInput } from "@/domain/team-suggest";
 import { clearanceGate, clearancePolicy } from "./clearance";
+import { siteWeekdays } from "./schedule";
 import { latestRevision, loadVisit, spanDayCount, visitSpan, type VisitRow } from "./plan-support";
 import { getSetting, idempotent, iso, one, parse, zDate, zId, type Ctx } from "./context";
 
@@ -83,7 +84,9 @@ async function suggestionInput(q: Queryable, v: VisitRow, now: number, opts: { e
   const base = span ?? { start: startOfLocalDay(anchorDate, v.timezone), end: startOfLocalDay(addDays(anchorDate, spanDays), v.timezone) };
   const window = { start: base.start, end: base.end + horizonDays * DAY };
   const calendar = await q.query<{ week_pattern: Record<string, unknown> }>("select week_pattern from work_calendar order by created_at limit 1");
-  const working = Object.keys(calendar[0]?.week_pattern ?? { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 }).map(Number);
+  // A recorded site window (society rules) narrows the company calendar; it never widens it.
+  const siteDays = await siteWeekdays(q, v.project_id);
+  const working = Object.keys(calendar[0]?.week_pattern ?? { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 }).map(Number).filter((w) => !siteDays || siteDays.includes(w));
   const holidays = (await q.query<{ date: string }>("select date::text from holiday")).map((h) => h.date);
   return {
     candidates: await loadCandidates(q, v.id, window, now),
@@ -135,17 +138,16 @@ export async function suggestTeamsForVisit(ctx: Ctx, input: unknown) {
 export async function visitCoverage(q: Queryable, visitId: string, opts: { activeAt?: number } = {}) {
   const v = await loadVisit(q, visitId);
   const span = visitSpan(v);
-  const members = await q.query<{ employee_id: string; job_role: string }>(
-    `select r.employee_id, e.job_role from reservation r join employee e on e.id = r.employee_id where r.visit_id = $1 and r.state in ('proposed','held','confirmed')
-       and ($2::timestamptz is null or r.span @> $2::timestamptz)`, [visitId, opts.activeAt ? new Date(opts.activeAt).toISOString() : null]);
+  const members = await q.query<{ employee_id: string; job_role: string; lo: number; hi: number }>(
+    `select r.employee_id, e.job_role, lower(r.span) lo, upper(r.span) hi from reservation r join employee e on e.id = r.employee_id
+     where r.visit_id = $1 and r.state in ('proposed','held','confirmed')`, [visitId]);
   if (!span) return { met: false, problems: ["Visit has no planned dates"], memberCount: members.length };
   const skills = await skillsByEmployee(q, members.map((m) => m.employee_id));
+  const requirements = await visitRequirements(q, visitId);
   const from = opts.activeAt && opts.activeAt > span.start ? opts.activeAt : span.start;
-  const dates = datesBetween(localDateOf(from, v.timezone), localDateOf(span.end - 1, v.timezone));
-  const cov = evaluateCoverage(members.map((m) => ({ id: m.employee_id, jobRole: m.job_role, skills: skills.get(m.employee_id) ?? [] })), await visitRequirements(q, visitId), dates);
-  const problems = cov.results.filter((r) => !r.met).map((r) => `${r.skillCode}: ${r.message}`);
-  if (members.length !== v.team_size) problems.push(`Staffed ${members.length} of ${v.team_size}`);
-  return { met: problems.length === 0, problems, memberCount: members.length, results: cov.results };
+  const cov = coverageByPeriod(members.map((m) => ({ id: m.employee_id, jobRole: m.job_role, skills: skills.get(m.employee_id) ?? [], from: Number(m.lo), until: Number(m.hi) })),
+    requirements, from, span.end, v.team_size, (a, b) => datesBetween(localDateOf(a, v.timezone), localDateOf(b - 1, v.timezone)));
+  return { met: cov.met, problems: cov.problems, memberCount: cov.periods[0]?.present.length ?? 0, results: cov.periods[0]?.results ?? [] };
 }
 
 /** Manual selection passes the same checks as suggestions; it creates proposed (nonblocking) reservations. */

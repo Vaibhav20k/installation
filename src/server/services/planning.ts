@@ -9,6 +9,7 @@ import { forbidSelfApproval, requireProjectScope, requireRole } from "../auth/pe
 import { conflict, forbidden, validation } from "../errors";
 import { assertApproval, type ApprovalState } from "@/domain/lifecycle";
 import { canCommitScope } from "@/domain/progress";
+import { itineraryProblems } from "@/domain/scheduling";
 import { Dec, sumDec } from "@/domain/decimal";
 import { buildSnapshot, ensureDraftRevision, latestRevision, loadVisit } from "./plan-support";
 import { iso, one, parse, zDate, zId, zQty, type Ctx } from "./context";
@@ -97,6 +98,8 @@ export async function updateVisitDates(ctx: Ctx, input: unknown) {
     const v = await loadVisit(q, d.visitId, true);
     await requireProjectScope(q, ctx.actor, v.project_id);
     if (!["unscheduled", "scheduled", "on_hold"].includes(v.exec_status)) throw conflict(`A visit that is ${v.exec_status} needs a schedule revision, not a date edit.`);
+    const order = itineraryProblems({ plannedStart: d.plannedStart, plannedEnd: d.plannedEnd, departureAt: d.departureAt ? Date.parse(d.departureAt) : null, returnAt: d.returnAt ? Date.parse(d.returnAt) : null, tz: v.timezone });
+    if (order.length) throw validation("The itinerary is out of order.", order);
     const live = await q.query("select 1 from reservation where visit_id = $1 and state in ('held','confirmed') limit 1", [d.visitId]);
     if (live.length) throw conflict("This visit has held or confirmed staff. Use a schedule revision so reservations move atomically.");
     await ensureDraftRevision(q, ctx, v.plan_id, d.changeReason);

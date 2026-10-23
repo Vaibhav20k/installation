@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCrewPresence, evaluateCoverage, qualifiesThroughout, type EmployeeSkillRecord, type SkillRequirement } from "@/domain/skills";
+import { checkCrewPresence, coverageByPeriod, evaluateCoverage, qualifiesThroughout, type EmployeeSkillRecord, type SkillRequirement } from "@/domain/skills";
 import { suggestTeams, evaluateTeam, type Candidate, type SuggestInput } from "@/domain/team-suggest";
 import { zonedToUtc, addDays } from "@/lib/dates";
 
@@ -120,5 +120,39 @@ describe("scenario 26: team size and bounded search", () => {
     const b = suggestTeams(input([...cands].reverse(), { continuity: "none" }));
     expect(a.options.map((o) => o.memberIds)).toEqual(b.options.map((o) => o.memberIds));
     expect(a.tieBreakRules.length).toBeGreaterThan(2);
+  });
+});
+
+describe("crew presence over time (checklist phase 4: concurrent qualified presence)", () => {
+  const req: SkillRequirement[] = [{ id: "r1", skillCode: "stone", minLevel: 3, headcount: 1, mode: "collective" }];
+  const day = (d: string) => zonedToUtc(d, "00:00", TZ);
+  const datesOf = (a: number, b: number) => { const out: string[] = []; for (let t = a; t < b; t += 86_400_000) out.push(new Date(t + 19_800_000).toISOString().slice(0, 10)); return out; };
+  const start = day("2026-11-02"), end = day("2026-11-06");
+  it("a qualified senior replaced mid-visit by an unqualified person leaves the later period uncovered, named by date", () => {
+    const members = [
+      { id: "senior", jobRole: "senior_technician", skills: [v("stone", 3)], from: start, until: day("2026-11-04") },
+      { id: "helper", jobRole: "helper", skills: [], from: start, until: end },
+      { id: "new", jobRole: "technician", skills: [v("stone", 1)], from: day("2026-11-04"), until: end },
+    ];
+    const r = coverageByPeriod(members, req, start, end, 2, datesOf);
+    expect(r.met).toBe(false);
+    expect(r.periods.map((p) => [p.dates[0], p.present.length, p.problems.length])).toEqual([["2026-11-02", 2, 0], ["2026-11-04", 2, 1]]);
+    expect(r.problems[0]).toMatch(/^2026-11-04 to 2026-11-05: stone/);
+  });
+  it("the same team total over the visit does not hide a gap: a qualified replacement covers it", () => {
+    const members = [
+      { id: "senior", jobRole: "senior_technician", skills: [v("stone", 3)], from: start, until: day("2026-11-04") },
+      { id: "helper", jobRole: "helper", skills: [], from: start, until: end },
+      { id: "new", jobRole: "senior_technician", skills: [v("stone", 3)], from: day("2026-11-04"), until: end },
+    ];
+    expect(coverageByPeriod(members, req, start, end, 2, datesOf)).toMatchObject({ met: true, problems: [] });
+  });
+  it("an added fourth person for part of the visit is checked against team size for that period", () => {
+    const members = [
+      { id: "a", jobRole: "senior_technician", skills: [v("stone", 3)], from: start, until: end },
+      { id: "b", jobRole: "helper", skills: [], from: day("2026-11-03"), until: end },
+    ];
+    const r = coverageByPeriod(members, req, start, end, 2, datesOf);
+    expect(r.problems).toEqual(["2026-11-02: Staffed 1 of 2"]);
   });
 });

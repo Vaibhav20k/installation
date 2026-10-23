@@ -142,3 +142,27 @@ export function checkCrewPresence(requiredRoles: string[], minutesTogether: numb
   const ok = best >= minutesTogether;
   return { ok, togetherMinutes: best, message: ok ? `Crew overlaps for ${best} minutes` : `Required roles overlap only ${best} of ${minutesTogether} minutes` };
 }
+
+export interface BookedMember { id: string; jobRole: string; skills: EmployeeSkillRecord[]; from: number; until: number }
+
+/**
+ * Crew presence over time: membership changes (a replacement, an added person) split [from, end) into periods, and each
+ * period must be covered by the people actually booked during it, not by the team's total over the whole visit.
+ * `datesOf` turns a period into its local work dates (the caller owns the timezone).
+ */
+export function coverageByPeriod(members: BookedMember[], requirements: SkillRequirement[], from: number, end: number, teamSize: number, datesOf: (a: number, b: number) => string[]) {
+  const cuts = [...new Set([from, end, ...members.flatMap((m) => [m.from, m.until]).filter((t) => t > from && t < end)])].sort((a, b) => a - b);
+  const periods: Array<{ dates: string[]; present: string[]; problems: string[]; results: ReturnType<typeof evaluateCoverage>["results"] }> = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const a = cuts[i]!, b = cuts[i + 1]!;
+    const here = members.filter((m) => m.from <= a && m.until >= b);
+    const dates = datesOf(a, b);
+    const cov = evaluateCoverage(here.map((m) => ({ id: m.id, jobRole: m.jobRole, skills: m.skills })), requirements, dates);
+    const problems = cov.results.filter((r) => !r.met).map((r) => `${r.skillCode}: ${r.message}`);
+    if (here.length !== teamSize) problems.push(`Staffed ${here.length} of ${teamSize}`);
+    periods.push({ dates, present: here.map((m) => m.id), problems, results: cov.results });
+  }
+  const label = (d: string[]) => periods.length > 1 ? `${d[0]}${d.length > 1 ? ` to ${d[d.length - 1]}` : ""}: ` : "";
+  const problems = periods.flatMap((p) => p.problems.map((x) => `${label(p.dates)}${x}`));
+  return { met: problems.length === 0, problems, periods };
+}

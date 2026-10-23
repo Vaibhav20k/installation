@@ -7,6 +7,7 @@ import { audit } from "../audit";
 import { requireProjectScope, requireRole } from "../auth/permissions";
 import { conflict, validation } from "../errors";
 import { ensureDraftRevision, loadVisit, visitSpan } from "./plan-support";
+import { legReachability } from "@/domain/scheduling";
 import { iso, one, parse, zId, type Ctx } from "./context";
 
 const zTs = z.string().datetime({ offset: true });
@@ -22,6 +23,8 @@ export async function addTravelLeg(ctx: Ctx, input: unknown) {
   return ctx.db.tx(async (q) => {
     const v = await loadVisit(q, d.visitId, true);
     await requireProjectScope(q, ctx.actor, v.project_id);
+    const unreachable = legReachability(d.kind, dep, arr, v.planned_start, v.planned_end, v.timezone);
+    if (unreachable) throw validation(unreachable);
     const staff = await q.query<{ employee_id: string; state: string; lo: number; hi: number }>(
       "select employee_id, state, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and state in ('proposed','held','confirmed')", [d.visitId]);
     const participants = d.employeeIds?.length ? d.employeeIds : staff.map((s) => s.employee_id);

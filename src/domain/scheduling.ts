@@ -2,7 +2,7 @@
  * Schedule-start derivation (master prompt section 6, "Dates, travel, and site occupancy").
  * Missing dates yield a tentative result with named blockers; no buffer is invented.
  */
-import { addDays, dayDiff, weekday } from "@/lib/dates";
+import { addDays, dayDiff, localDateOf, weekday } from "@/lib/dates";
 
 export interface StartInputs {
   requestedInstallationStart?: string | null;
@@ -65,4 +65,20 @@ export function deriveScheduleStart(i: StartInputs): StartResult {
 /** Hotel nights follow the itinerary (arrival to departure), not the installation workday count. */
 export function hotelNights(arrivalDate: string, departureDate: string): number {
   return Math.max(0, dayDiff(arrivalDate, departureDate));
+}
+
+/** Departure, installation dates and return must be in order (checklist phase 6: travel start, arrival, work, return). */
+export function itineraryProblems(i: { plannedStart: string; plannedEnd: string; departureAt?: number | null; returnAt?: number | null; tz: string }): string[] {
+  const out: string[] = [];
+  if (i.departureAt != null && i.returnAt != null && !(i.returnAt > i.departureAt)) out.push("Return must be after departure.");
+  if (i.departureAt != null && localDateOf(i.departureAt, i.tz) > i.plannedStart) out.push(`Departure (${localDateOf(i.departureAt, i.tz)}) is after the planned installation start (${i.plannedStart}).`);
+  if (i.returnAt != null && localDateOf(i.returnAt, i.tz) < i.plannedEnd) out.push(`Return (${localDateOf(i.returnAt, i.tz)}) is before the planned installation end (${i.plannedEnd}).`);
+  return out;
+}
+
+/** Can the team reach the site in time with this leg? Outbound must arrive by the start date; return must leave after the work. */
+export function legReachability(kind: "outbound" | "inter_site" | "return", depart: number, arrive: number, plannedStart: string | null, plannedEnd: string | null, tz: string): string | null {
+  if (kind === "outbound" && plannedStart && localDateOf(arrive, tz) > plannedStart) return `This leg arrives on ${localDateOf(arrive, tz)}, after installation is planned to start (${plannedStart}).`;
+  if (kind === "return" && plannedEnd && localDateOf(depart, tz) < plannedEnd) return `This return leg leaves on ${localDateOf(depart, tz)}, before the planned installation end (${plannedEnd}).`;
+  return null;
 }
