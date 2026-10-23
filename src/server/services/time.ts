@@ -156,7 +156,12 @@ export async function amendTimeEntry(ctx: Ctx, input: unknown) {
 /** Marks final reconciliations for the affected employee-months invalid and deactivates their allocations. */
 export async function invalidateMonths(q: Queryable, ctx: Ctx, employeeId: string, spans: Interval[], reason: string) {
   const months = new Set<string>();
-  for (const s of spans) for (const m of splitAtLocalMonths(s, "Asia/Kolkata")) months.add(m.month);
+  // Same settlement timezone the reconciliation uses (policy, else the employee's calendar), so the right months are invalidated.
+  const cal = await employeeCalendar(q, employeeId);
+  for (const s of spans) {
+    const p = await policyForMonth(q, splitAtLocalMonths(s, cal.timezone)[0]!.month);
+    for (const m of splitAtLocalMonths(s, p?.settlement_timezone ?? cal.timezone)) months.add(m.month);
+  }
   const out: string[] = [];
   for (const m of months) {
     const rows = await q.query<{ id: string }>("update month_reconciliation set state = 'invalidated', invalidated_reason = $3 where employee_id = $1 and month = $2::date and state = 'final' returning id", [employeeId, `${m}-01`, reason]);
