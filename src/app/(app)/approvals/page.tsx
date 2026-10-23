@@ -57,7 +57,8 @@ export default async function ApprovalsPage() {
       </section>
 
       <section className="card stack" id="time" aria-labelledby="h-tm">
-        <h2 id="h-tm">Time entries ({q.time.length})</h2>
+        <h2 id="h-tm">Time entries ({q.time[0]?.waiting ?? 0})</h2>
+        {(q.time[0]?.waiting ?? 0) > q.time.length && <p className="small muted" role="status" style={{ margin: 0 }}>Showing the oldest {q.time.length} of {q.time[0]!.waiting}. Decide these and the rest appear here.</p>}
         {q.time.length === 0 ? <Empty>No submitted time awaiting review.</Empty> : (
           <div className="table-wrap"><table className="rows-mobile">
             <thead><tr><th>Employee</th><th>Activity</th><th>From</th><th>To</th><th className="num">Gross</th><th>Notes</th><th>Decision</th></tr></thead>

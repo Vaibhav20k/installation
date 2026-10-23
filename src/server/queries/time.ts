@@ -87,8 +87,8 @@ export async function approvalQueues(q: Queryable, actor: Actor) {
      from plan_revision r join plan pl on pl.id = r.plan_id join project p on p.id = pl.project_id left join employee e on e.id = r.submitted_by
      where r.approval_state = 'submitted' and ${pf.sql} order by r.submitted_at`, pf.params);
   const ef = await employeeFilter(q, actor, "t.employee_id", 1);
-  const time = await q.query<{ id: string; employee: string; employee_id: string; activity: string; start: number; end: number; project: string | null; is_exception: boolean; note: string | null; exception_note: string | null }>(
-    `select t.id, e.name employee, e.id employee_id, t.activity, lower(t.span) "start", upper(t.span) "end", p.name project, t.is_exception, t.note, t.exception_note
+  const time = await q.query<{ id: string; employee: string; employee_id: string; activity: string; start: number; end: number; project: string | null; is_exception: boolean; note: string | null; exception_note: string | null; waiting: number }>(
+    `select count(*) over ()::int waiting, t.id, e.name employee, e.id employee_id, t.activity, lower(t.span) "start", upper(t.span) "end", p.name project, t.is_exception, t.note, t.exception_note
      from time_entry t join employee e on e.id = t.employee_id left join project p on p.id = t.project_id
      where t.state = 'submitted' and t.is_current and ${ef.sql} order by lower(t.span) limit 200`, ef.params);
   const of = await employeeFilter(q, actor, "o.employee_id", 1);

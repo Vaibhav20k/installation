@@ -4,48 +4,72 @@ import { allocateExpense, approveBudget, recordExpenseCredit, submitExpense } fr
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { EvidenceUploader, attachmentNote, useEvidenceDraft } from "@/components/evidence/EvidenceUploader";
+import { Plus, X } from "@phosphor-icons/react";
 import { rupeesToMinor } from "@/lib/format";
 
 const CATEGORIES = ["meal", "accommodation", "outbound_travel", "return_travel", "local_transport", "consumables", "unloading", "additional_manpower", "rework", "other"];
+
+/**
+ * "Add expense" button at the top of the page. The form stays closed until asked for, and closes again after a
+ * successful submit; the result (and any attachment note) stays beside the button.
+ */
+export function AddExpense({ projects, visits }: { projects: Array<{ id: string; label: string }>; visits: Array<{ id: string; business_id: string; project_id: string }> }) {
+  const [open, setOpen] = useState(false);
+  const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
+  const xDraft = useEvidenceDraft("expense.claim");
+  const [xLinked, setXLinked] = useState("");
+  const token = useRef<string | null>(null);
+  const submit = useAction(submitExpense, { onSuccess: async (d) => { token.current = null; setOpen(false); setXLinked(attachmentNote(await xDraft.attach("expense", (d as { id: string }).id))); } });
+  return (
+    <div className="add-expense stack">
+      <div className="row">
+        <button type="button" className="primary" aria-expanded={open} aria-controls="add-expense-form" onClick={() => setOpen((o) => !o)}>
+          {open ? <X size={18} weight="bold" aria-hidden /> : <Plus size={18} weight="bold" aria-hidden />} {open ? "Close" : "Add expense"}
+        </button>
+        {!open && <ResultNotice result={submit.result} successText={`Submitted for approval by a manager other than you.${xLinked}`} />}
+      </div>
+      {open && (
+        <section id="add-expense-form" className="card stack" aria-labelledby="h-sub">
+          <h2 id="h-sub">Submit an expense</h2>
+          <form className="form" onSubmit={(e) => {
+            e.preventDefault(); const f = new FormData(e.currentTarget);
+            submit.run({ projectId, visitId: String(f.get("v") || "") || undefined, category: String(f.get("c")), vendor: String(f.get("vendor") || "") || undefined, loadRef: String(f.get("load") || "") || undefined,
+              amountMinor: rupeesToMinor(String(f.get("amt"))), incurredOn: String(f.get("d")), receiptRef: String(f.get("r") || "") || undefined, idempotencyKey: (token.current ??= `exp-${crypto.randomUUID()}`) });
+          }}>
+            <div className="fields">
+              <div className="field"><label htmlFor="x-p">Project</label><select id="x-p" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
+              <div className="field"><label htmlFor="x-v">Visit</label><select id="x-v" name="v"><option value="">Project level</option>{visits.filter((v) => v.project_id === projectId).map((v) => <option key={v.id} value={v.id}>{v.business_id}</option>)}</select></div>
+              <div className="field"><label htmlFor="x-c">Category</label><select id="x-c" name="c">{CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}</select></div>
+              <div className="field"><label htmlFor="x-a">Amount (₹)</label><input id="x-a" name="amt" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required autoFocus /></div>
+              <div className="field"><label htmlFor="x-d">Date incurred</label><input id="x-d" type="date" name="d" required /></div>
+              <div className="field"><label htmlFor="x-r">Receipt reference</label><input id="x-r" name="r" /></div>
+              <div className="field"><label htmlFor="x-vn">Vendor</label><input id="x-vn" name="vendor" /></div>
+              <div className="field"><label htmlFor="x-l">Load ID (unloading)</label><input id="x-l" name="load" /></div>
+            </div>
+            <p className="small muted">Enter a shared cost (for example two rooms for three nights) once; do not repeat it per employee. Add a photo of the receipt below if you have one; the amount you type is what counts, not the photo.</p>
+            <EvidenceUploader draft={xDraft} label="Receipt photo or video (optional)" />
+            <div className="row">
+              <button type="submit" className="primary" disabled={submit.pending}>Submit expense</button>
+              <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+            </div>
+            <ResultNotice result={submit.result && !submit.result.ok ? submit.result : null} />
+          </form>
+        </section>
+      )}
+    </div>
+  );
+}
 
 export function ExpenseForms({ projects, visits, expenses, canAllocate, canBudget }: {
   projects: Array<{ id: string; label: string }>; visits: Array<{ id: string; business_id: string; project_id: string }>;
   expenses: Array<{ id: string; label: string; projectId: string; state: string }>; canAllocate: boolean; canBudget: boolean;
 }) {
-  const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
-  const xDraft = useEvidenceDraft("expense.claim");
-  const [xLinked, setXLinked] = useState("");
-  const submit = useAction(submitExpense, { onSuccess: async (d) => { token.current = null; setXLinked(attachmentNote(await xDraft.attach("expense", (d as { id: string }).id))); } });
   const credit = useAction(recordExpenseCredit);
   const alloc = useAction(allocateExpense);
   const budget = useAction(approveBudget);
-  const token = useRef<string | null>(null);
   const [targets, setTargets] = useState<Array<{ projectId: string; visitId: string; weight: string }>>([{ projectId: projects[0]?.id ?? "", visitId: "", weight: "1" }]);
   return (
-    <div className="grid cols-2">
-      <section className="card stack" aria-labelledby="h-sub">
-        <h2 id="h-sub">Submit an expense</h2>
-        <form className="form" onSubmit={(e) => {
-          e.preventDefault(); const f = new FormData(e.currentTarget);
-          submit.run({ projectId, visitId: String(f.get("v") || "") || undefined, category: String(f.get("c")), vendor: String(f.get("vendor") || "") || undefined, loadRef: String(f.get("load") || "") || undefined,
-            amountMinor: rupeesToMinor(String(f.get("amt"))), incurredOn: String(f.get("d")), receiptRef: String(f.get("r") || "") || undefined, idempotencyKey: (token.current ??= `exp-${crypto.randomUUID()}`) });
-        }}>
-          <div className="fields">
-            <div className="field"><label htmlFor="x-p">Project</label><select id="x-p" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
-            <div className="field"><label htmlFor="x-v">Visit</label><select id="x-v" name="v"><option value="">Project level</option>{visits.filter((v) => v.project_id === projectId).map((v) => <option key={v.id} value={v.id}>{v.business_id}</option>)}</select></div>
-            <div className="field"><label htmlFor="x-c">Category</label><select id="x-c" name="c">{CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}</select></div>
-            <div className="field"><label htmlFor="x-a">Amount (₹)</label><input id="x-a" name="amt" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required /></div>
-            <div className="field"><label htmlFor="x-d">Date incurred</label><input id="x-d" type="date" name="d" required /></div>
-            <div className="field"><label htmlFor="x-r">Receipt reference</label><input id="x-r" name="r" /></div>
-            <div className="field"><label htmlFor="x-vn">Vendor</label><input id="x-vn" name="vendor" /></div>
-            <div className="field"><label htmlFor="x-l">Load ID (unloading)</label><input id="x-l" name="load" /></div>
-          </div>
-          <p className="small muted">Enter a shared cost (for example two rooms for three nights) once; do not repeat it per employee. Add a photo of the receipt below if you have one; the amount you type is what counts, not the photo.</p>
-          <EvidenceUploader draft={xDraft} label="Receipt photo or video (optional)" />
-          <button type="submit" className="primary" disabled={submit.pending}>Submit expense</button>
-          <ResultNotice result={submit.result} successText={`Submitted for approval by a manager other than you.${xLinked}`} />
-        </form>
-      </section>
+    <div className="stack">
       <section className="card stack" aria-labelledby="h-more">
         <h2 id="h-more">Credits, allocation and budget</h2>
         <form className="form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); credit.run({ expenseId: String(f.get("x")), amountMinor: rupeesToMinor(String(f.get("amt"))), reason: String(f.get("why")) }); }}>

@@ -6,7 +6,7 @@ import { listProjects } from "@/server/queries/projects";
 import { formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/Badge";
 import { Empty, PageHeader } from "@/components/ui/Notice";
-import { ExpenseForms } from "@/components/expenses/ExpenseForms";
+import { AddExpense, ExpenseForms } from "@/components/expenses/ExpenseForms";
 
 export const metadata = { title: "Expenses" };
 
@@ -14,12 +14,14 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const { db, actor } = await session();
   const projectId = sp.project || undefined;
-  const [summary, expenses, projects] = await Promise.all([expenseSummary(db, actor, { projectId }), listExpenses(db, actor, { projectId, state: sp.state || undefined }), listProjects(db, actor)]);
+  const [summary, expenses, projects] = await Promise.all([expenseSummary(db, actor, { projectId }), listExpenses(db, actor, { projectId, state: sp.state || undefined, page: Number(sp.page) || 1 }), listProjects(db, actor)]);
   const visits = await db.query<{ id: string; business_id: string; project_id: string }>("select id, business_id, project_id from visit where project_id = any($1::uuid[]) and exec_status <> 'cancelled' order by business_id", [projects.map((p) => p.id)]);
-  const shownTotal = expenses.filter((e) => e.state === "approved").reduce((s, e) => s + (e.is_credit ? -e.amount_minor : e.amount_minor), 0);
+  const pages = Math.max(1, Math.ceil(expenses.total / expenses.pageSize));
+  const pageHref = (p: number) => `/expenses?${new URLSearchParams(Object.entries({ project: projectId, state: sp.state, page: String(p) }).filter(([, v]) => v) as Array<[string, string]>).toString()}`;
   return (
     <>
       <PageHeader title="Expenses" subtitle="Estimates, approved budgets and actual expenses are distinct. Money is stored in paise; shared costs are entered once and allocated so parts always sum exactly." />
+      <AddExpense projects={projects.map((p) => ({ id: p.id, label: `${p.business_id} · ${p.name}` }))} visits={visits} />
       <form className="row card no-print" role="search" aria-label="Filter expenses">
         <div className="field"><label htmlFor="e-p">Project</label><select id="e-p" name="project" defaultValue={projectId ?? ""}><option value="">All in scope</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.business_id} · {p.name}</option>)}</select></div>
         <div className="field"><label htmlFor="e-s">State</label><select id="e-s" name="state" defaultValue={sp.state ?? ""}><option value="">Any</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
@@ -37,11 +39,11 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         </table></div>
       </section>
       <section className="card stack" aria-labelledby="h-list">
-        <div className="spread"><h2 id="h-list">Expense records</h2><span className="small">Approved total in this list: <strong>{formatMoney(shownTotal)}</strong></span></div>
-        {expenses.length === 0 ? <Empty>No expenses match.</Empty> : (
+        <div className="spread"><h2 id="h-list">Expense records</h2><span className="small">Approved total for these filters: <strong>{formatMoney(expenses.approvedTotalMinor)}</strong> · {expenses.total} record{expenses.total === 1 ? "" : "s"}</span></div>
+        {expenses.rows.length === 0 ? <Empty>No expenses match.</Empty> : (
           <div className="table-wrap"><table>
             <thead><tr><th className="pin">Expense</th><th>Date</th><th>Project / visit</th><th>Category</th><th>Vendor / load</th><th className="num">Amount</th><th>Claimant</th><th>State</th><th>Allocation</th></tr></thead>
-            <tbody>{expenses.map((e) => (
+            <tbody>{expenses.rows.map((e) => (
               <tr key={e.id}>
                 <th scope="row" className="pin" style={{ fontWeight: 400 }}>{e.business_id}{e.is_credit && <div className="small">Credit for {e.reverses}</div>}{e.receipt_ref && <div className="small muted">{e.receipt_ref}</div>}</th>
                 <td>{e.incurred_on}</td><td>{e.project}{e.visit ? ` · ${e.visit}` : ""}</td><td>{e.category.replace(/_/g, " ")}</td><td className="small">{e.vendor ?? "None"}{e.load_ref ? ` · ${e.load_ref}` : ""}</td>
@@ -52,8 +54,15 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
             ))}</tbody>
           </table></div>
         )}
+        {pages > 1 && (
+          <nav className="row pager" aria-label="Expense pages">
+            {expenses.page > 1 ? <Link href={pageHref(expenses.page - 1)} rel="prev">Newer</Link> : <span className="muted">Newer</span>}
+            <span className="small">Page {expenses.page} of {pages}</span>
+            {expenses.page < pages ? <Link href={pageHref(expenses.page + 1)} rel="next">Older</Link> : <span className="muted">Older</span>}
+          </nav>
+        )}
       </section>
-      <ExpenseForms projects={projects.map((p) => ({ id: p.id, label: `${p.business_id} · ${p.name}` }))} visits={visits} expenses={expenses.filter((e) => !e.is_credit).map((e) => ({ id: e.id, label: `${e.business_id} · ${formatMoney(e.amount_minor)} · ${e.category}`, projectId: e.project_id, state: e.state }))}
+      <ExpenseForms projects={projects.map((p) => ({ id: p.id, label: `${p.business_id} · ${p.name}` }))} visits={visits} expenses={expenses.rows.filter((e) => !e.is_credit).map((e) => ({ id: e.id, label: `${e.business_id} · ${formatMoney(e.amount_minor)} · ${e.category}`, projectId: e.project_id, state: e.state }))}
         canAllocate={actor.role === "manager" || actor.role === "admin"} canBudget={actor.capabilities.includes("finance_verify")} />
     </>
   );
