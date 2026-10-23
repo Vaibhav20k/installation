@@ -8,6 +8,7 @@ import { addDays, isLocalDate, localDateOf, weekday } from "@/lib/dates";
 import { formatMoney, TZ, when } from "@/lib/format";
 import { Board } from "@/components/planning/Board";
 import { Sheet, type SheetRowView } from "@/components/planning/Sheet";
+import { SavedFilters } from "@/components/planning/SavedFilters";
 import { PageHeader, Tabs } from "@/components/ui/Notice";
 
 export const metadata = { title: "Planning" };
@@ -78,6 +79,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
           <label className="check" style={{ alignSelf: "flex-end" }}><input type="checkbox" name="conflicts" value="1" defaultChecked={sp.conflicts === "1"} /> Only rows with conflicts</label>
           <button type="submit" style={{ alignSelf: "flex-end" }}>Apply</button>
         </form>
+        <SavedFilters query={new URLSearchParams([["view", "sheet"], ...exportParams.entries()]).toString()} />
         <Sheet rows={view} exportHref={`/api/export/sheet?${exportParams.toString()}`} />
       </>
     );
