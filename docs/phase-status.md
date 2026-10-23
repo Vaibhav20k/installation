@@ -1,5 +1,7 @@
 # Phase status
 
+The 23 Oct checklist re-verified every phase item by item: see `implementation-checklist.md`. It is the current status; the tables below are history.
+
 ## V3 (spec of 22 Oct 2026)
 
 | Phase | Status | Evidence |

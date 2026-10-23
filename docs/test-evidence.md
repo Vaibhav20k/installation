@@ -83,3 +83,29 @@ See `performance-baseline.md` and `performance-after.md`: tab click to usable pa
 ### Not verified
 
 Real phones (sticky hover, tap delay, safe areas, keyboard, camera capture); closed-app push; production object storage; behaviour with a real authentication provider.
+
+## Checklist round (23 Oct 2026)
+
+`npx tsc --noEmit`: 0 errors. `npx vitest run`: **23 files, 162 tests, all passed** (three forks; with the default pool and the local server running, five workers crashed from memory pressure, then passed on rerun). `npm run build` succeeded.
+
+| New or changed test | Proves |
+|---|---|
+| `unit/itinerary.test.ts` (7) | Departure ≤ start ≤ end ≤ return; outbound arrives by the start date and return leaves after the last day, in the site's local date; a site closed on Saturdays pushes schedule work past it |
+| `unit/skills.test.ts` (+3) | Coverage by period: a qualified senior replaced by an unqualified person leaves the later period uncovered, named by date; a qualified replacement covers it; a part-visit member is checked against team size per period |
+| `integration/boundaries.test.ts` (+1, +2 assertions) | Out-of-order visit dates refused; late outbound and early return legs refused |
+| `integration/evidence.test.ts` (+1) | Measurement photos link to the measurement record; a worker outside the project cannot attach |
+| `integration/site.test.ts` (fixed) | The whole-booking replacement test picked the outgoing person by random UUID order, so it sometimes chose the only qualified member, and the app correctly refused. It now tries each member |
+
+Browser (production build on :3300):
+- **Saved filters:** saved and reopened as EMP-004.
+- **Expenses:** totals cover all matching records.
+- **Readiness checklist:** each check shows a photo option, with no overflow.
+- **Clock-in camera:** loads on demand; with the camera blocked it falls back to the picker.
+
+Headless Chrome with a fake camera, as EMP-020 at 390 px:
+- clocked in with a photo
+- switched to Travel
+- attached a photo to that activity ("1 attachment linked")
+- 0 px overflow and no console errors
+
+This left an open shift for EMP-020 in the demo database.

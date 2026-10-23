@@ -62,3 +62,7 @@ All documented budgets are met in these lab conditions. The polling numbers run 
 
 - Real phones and real mobile networks; the figures above are emulation.
 - Navigation while a large video uploads under throttling. Uploads run in a separate queue with at most 2 in parallel; the worker flow test covered navigation during a small photo upload only.
+
+## Checklist round (23 Oct 2026)
+
+Not re-measured. The changes add no work to page loads: the clock-in camera and package scanner now load on demand (smaller My day and Packages bundles), and expenses fetch 50 rows per page instead of up to 300.

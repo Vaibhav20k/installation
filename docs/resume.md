@@ -2,10 +2,11 @@
 
 Active spec: `../docs/INSTALLATION_MANAGEMENT_CLAUDE_MASTER_PROMPT_V3_2026-10-22.md` (V3, 15 phases). It is built in the existing Fittings Catalogue design (DESIGN.md), not the spec's sample blue tokens. All V3 phases and checkpoints are done; see `phase-status.md` (V3 table first, earlier V2 history below it).
 
-## State (23 Oct 2026)
+## State (23 Oct 2026, after the checklist round)
 
-- Typecheck clean; `npx vitest run`: 22 files, 146 tests passing. `npm run build` succeeds.
-- Migrations 001–009. A new or reset database gets everything; an existing one applies 006–009 on start.
+- Typecheck clean; `npx vitest run`: 23 files, 162 tests passing (use `--poolOptions.forks.maxForks=3` while the local server runs). `npm run build` succeeds.
+- Migrations 001–010. A new or reset database gets everything; an existing one applies new migrations on start.
+- Checklist of 23 Oct: `implementation-checklist.md` has every item's status and evidence, plus the remaining gaps in priority order.
 - Run locally:
   - `npm run local` builds, then serves on :3300 with demo identities.
   - Launch entry `installation-serve` serves an existing build without rebuilding.

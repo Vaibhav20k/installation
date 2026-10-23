@@ -22,6 +22,19 @@ On mobile, the camera buttons appear only where the pointer is coarse; desktop g
 | Visit execution step → `ExecutionStep` | Customer acceptance (media is not a signature) | `acceptance` | `acceptance.record` | Project scope |
 | Project Site tab → `RestrictionForm` | Site working window / society rule | `site_restriction` | `site.restriction` | Project scope (supervisor+) |
 | Project Site tab → `ApplianceForm` | Appliance state and brand technician | `appliance_dependency` | `appliance.check` | Project scope (supervisor+) |
+| /my-day → `AttendancePanel` activity switch | Break, idle or travel (attach after switching) | `attendance_event` (activity) | `attendance.activity` | Owner; supervisor+ in employee scope |
+| /my-day → `AttendancePanel` overtime reason | Why work continued past 8 hours | `shift_instance` | `overtime.reason` | Owner; supervisor+ in employee scope |
+| Visit clearance step → `ReadinessRow` | Each readiness check (site access, materials, drawings, tools, customer confirmation, skill coverage) | `readiness_check` | `readiness.check` | Project scope (supervisor+) |
+| Visit execution step → `ProgressForm` | Quantity per task | `progress_event` | `progress.quantity` | Project scope |
+| Project Site tab → `QuantityForm` | Measurement (net or gross quantity) | `quantity_snapshot` | `site.measurement` | Project scope (supervisor+) |
+| Project Site tab → `ApplianceException` | Proceed despite an appliance dependency | `appliance_dependency` | `appliance.exception` | Project scope (manager) |
+| Project Quality tab → `QualityPanel` | Closing a case; raising and closing an issue | `quality_case`, `issue` | `quality.closure`, `issue.raise`, `issue.action` | Project scope |
+| Installation page → `TeamManager`; visit → `SubstitutionForm` | Replacing a crew member (medical note, message) | `substitution` | `team.substitution` | Project scope (manager) |
+| People → `SkillForms` | Skill claim and verification | `employee_skill` | `skill.claim`, `skill.verification` | Owner; supervisor+ in employee scope |
+| Project Packages tab → `ScanBox` | Dispatch, receipt or damage scan (photo goes on the opened exception when there is one) | `scan_event` or `package_exception` | `package.scan` | Project scope |
+| Project Packages tab → `PackageExceptionForm` | Shortage, damage, unknown code | `package_exception` | `package.exception` | Project scope |
+| Project Customer tab → `DesignRequestForm`, `RevisionForm` | Design or measurement request; each revision | `design_request`, `design_revision` | `design.request`, `design.revision` | Project scope |
+| Project Customer tab → communication log | Conversation note | `communication_log` | `communication.log` | Project scope |
 
 Read-only views, filters and navigation have no uploader by design.
 
@@ -29,12 +42,18 @@ Read-only views, filters and navigation have no uploader by design.
 
 `EvidenceGallery` shows linked media beside the record (Approvals: attendance corrections and leave). Images lazy-load; videos are click-to-play with `preload="none"`.
 
-## Planned, not built yet
+## Not covered, by design or for now
 
-| Surface | Phase |
-|---|---|
-| Design/measurement requests, communication notes | 10 |
-| Package receipt exceptions | 11 |
+- Visit completion has no separate notes form; completion evidence goes on customer acceptance (handover photos) and per-task progress.
+- Travel legs are planned by supervisors; travel actually done is recorded through the attendance activity (with photos) and expenses (receipts).
+- A scan of a code that is not in the manifest opens an exception, and its photos go on that exception.
+
+**Exercised this round (23 Oct):**
+- the activity photo end to end in headless Chrome, with a fake camera, at 390 px
+- readiness rows rendered in the browser
+- the measurement link in `tests/integration/evidence.test.ts`
+
+The other newly wired forms typecheck and build but were not individually driven.
 
 ## Verified
 
