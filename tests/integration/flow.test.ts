@@ -98,7 +98,8 @@ describe("project -> plan -> execution -> timesheet -> reconciliation", () => {
       expect(r.isException).toBe(false);
       entryIds.push(r.id);
     }
-    const other = (await db.query<{ id: string }>("select id from employee where business_id = 'EMP-030'"))[0]!.id;
+    // Someone else with plain employee permission (the team member is chosen in random UUID order, so never assume who).
+    const other = (await db.query<{ id: string }>("select id from employee where permission_role = 'employee' and id <> $1 order by business_id desc limit 1", [memberId]))[0]!.id;
     expect(await kind(createTimeEntry(me, { employeeId: other, overheadCategory: "training", activity: "other", start: { date: "2026-11-05", time: "10:00" }, end: { date: "2026-11-05", time: "11:00" } }))).toBe("forbidden");
     await submitTimeEntries(me, { entryIds });
     expect(await kind(reviewTimeEntry(me, { entryId: entryIds[0], decision: "accepted" }))).toBe("forbidden");
