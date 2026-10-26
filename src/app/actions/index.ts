@@ -27,6 +27,8 @@ import * as site from "@/server/services/site";
 import * as commercial from "@/server/services/commercial";
 import * as customer from "@/server/services/customer";
 import * as packages from "@/server/services/packages";
+import * as skillCards from "@/server/services/skill-cards";
+import * as skillCardQueries from "@/server/queries/skill-cards";
 
 export async function signInAs(employeeId: string) {
   if (!demoAuthEnabled()) throw new Error("Demo sign-in is disabled in production.");
@@ -189,3 +191,13 @@ export async function addPackage(input: unknown) { return run(packages.addPackag
 export async function recordScan(input: unknown) { return run(packages.recordScan, input, C); }
 export async function raisePackageException(input: unknown) { return run(packages.raisePackageException, input, C); }
 export async function decidePackageException(input: unknown) { return run(packages.decidePackageException, input, C); }
+
+// Admin-only employee skill cards: every read and write checks the Admin permission in the query or service.
+const K = ["/skill-cards", "/people", "/planning", "/installations", "/visits"];
+export async function cardDetail(employeeId: string) { return run((ctx) => skillCardQueries.cardDetail(ctx.db, ctx.actor, String(employeeId), ctx.now), null, []); }
+export async function cardAssignOptions() { return run((ctx) => skillCardQueries.assignOptions(ctx.db, ctx.actor), null, []); }
+export async function cardAssignContext(input: { employeeId: string; visitId: string }) { return run((ctx) => skillCardQueries.assignContext(ctx.db, ctx.actor, String(input.employeeId), String(input.visitId), ctx.now), input, []); }
+export async function addCardSkill(input: unknown) { return run(skillCards.addCardSkill, input, K); }
+export async function updateCardSkill(input: unknown) { return run(skillCards.updateCardSkill, input, K); }
+export async function verifyCardSkill(input: unknown) { return run(skillCards.verifyCardSkill, input, K); }
+export async function assignFromCard(input: unknown) { return run(skillCards.assignFromCard, input, K); }
