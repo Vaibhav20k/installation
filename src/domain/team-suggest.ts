@@ -64,21 +64,23 @@ export function evaluateTeam(input: SuggestInput, memberIds: string[], start: st
   const span = input.spanFor(start);
   const dates = datesBetween(start, addDays(start, input.spanDays - 1));
   const members = memberIds.map((id) => input.candidates.find((c) => c.id === id));
-  const problems: string[] = [];
-  if (members.some((m) => !m)) problems.push("Unknown employee selected");
+  // Problems with a chosen person block even a partial draft; team-level gaps (size, coverage) only block a complete team.
+  const memberProblems: string[] = [];
+  if (members.some((m) => !m)) memberProblems.push("Unknown employee selected");
   const present = members.filter((m): m is Candidate => !!m);
-  if (new Set(memberIds).size !== memberIds.length) problems.push("The same employee is selected twice");
-  if (present.length !== input.teamSize) problems.push(`Team has ${present.length} members; configured team size is ${input.teamSize}`);
+  if (new Set(memberIds).size !== memberIds.length) memberProblems.push("The same employee is selected twice");
   for (const m of present) {
-    if (!m.active) problems.push(`${m.name} is inactive`);
-    if (m.blocking.some((b) => overlaps(b, span))) problems.push(`${m.name} is already reserved or on leave`);
+    if (!m.active) memberProblems.push(`${m.name} is inactive`);
+    if (m.blocking.some((b) => overlaps(b, span))) memberProblems.push(`${m.name} is already reserved or on leave`);
   }
+  const problems: string[] = [...memberProblems];
+  if (present.length !== input.teamSize) problems.push(`Team has ${present.length} members; configured team size is ${input.teamSize}`);
   const coverage = evaluateCoverage(present.map((m) => ({ id: m.id, jobRole: m.jobRole, skills: m.skills })), input.requirements, dates);
   for (const r of coverage.results.filter((x) => !x.met)) problems.push(`${r.skillCode}: ${r.message}`);
   if (input.continuity === "mandatory" && input.preferredTeam?.some((id) => !memberIds.includes(id))) {
     problems.push("Continuity is mandatory and the preferred team is not intact");
   }
-  return { ok: problems.length === 0, problems, coverage, dates };
+  return { ok: problems.length === 0, problems, memberProblems, coverage, dates };
 }
 
 export function suggestTeams(input: SuggestInput) {

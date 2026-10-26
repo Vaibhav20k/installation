@@ -73,7 +73,7 @@ async function preferredMembers(q: Queryable, v: VisitRow, onDate: string) {
   return rows.map((r) => r.employee_id);
 }
 
-async function suggestionInput(q: Queryable, v: VisitRow, now: number, opts: { earliestStart?: string; horizonDays?: number; teamSize?: number; durationDays?: number }): Promise<SuggestInput> {
+export async function suggestionInput(q: Queryable, v: VisitRow, now: number, opts: { earliestStart?: string; horizonDays?: number; teamSize?: number; durationDays?: number }): Promise<SuggestInput> {
   const span = visitSpan(v);
   const anchorDate = span ? localDateOf(span.start, v.timezone) : opts.earliestStart;
   if (!anchorDate) throw validation("Set planned dates (or give a start and duration) before asking for team options.");
@@ -152,7 +152,8 @@ export async function visitCoverage(q: Queryable, visitId: string, opts: { activ
 
 /** Manual selection passes the same checks as suggestions; it creates proposed (nonblocking) reservations. */
 export async function setVisitStaffing(ctx: Ctx, input: unknown) {
-  const d = parse(z.object({ visitId: zId, employeeIds: z.array(zId).min(1).max(12), changeReason: z.string().max(300).optional() }), input);
+  // allowIncomplete saves a partial team as a non-blocking proposal; the gaps are returned, never reported as met.
+  const d = parse(z.object({ visitId: zId, employeeIds: z.array(zId).min(1).max(12), changeReason: z.string().max(300).optional(), allowIncomplete: z.boolean().optional() }), input);
   requireRole(ctx.actor, "supervisor", "staffing visits");
   return ctx.db.tx(async (q) => {
     await expireHolds(q, ctx.now);
@@ -163,7 +164,7 @@ export async function setVisitStaffing(ctx: Ctx, input: unknown) {
     if (!span) throw validation("Set planned dates before staffing.");
     const si = await suggestionInput(q, v, ctx.now, {});
     const check = evaluateTeam(si, d.employeeIds, localDateOf(span.start, v.timezone));
-    if (!check.ok) throw validation("This team does not pass the staffing checks.", check.problems);
+    if (d.allowIncomplete ? check.memberProblems.length > 0 : !check.ok) throw validation("This team does not pass the staffing checks.", d.allowIncomplete ? check.memberProblems : check.problems);
     const { ensureDraftRevision } = await import("./plan-support");
     await ensureDraftRevision(q, ctx, v.plan_id, d.changeReason);
     const existing = await q.query<{ id: string; employee_id: string; state: string }>("select id, employee_id, state from reservation where visit_id = $1 and state in ('proposed','held','confirmed')", [d.visitId]);
@@ -178,7 +179,7 @@ export async function setVisitStaffing(ctx: Ctx, input: unknown) {
         [d.visitId, emp, roles.get(emp) ?? "technician", iso(span.start), iso(span.end), ctx.actor.id]);
     }
     await audit(q, { actorId: ctx.actor.id, action: "set_staffing", objectType: "visit", objectId: d.visitId, before: existing.map((e) => e.employee_id), after: d.employeeIds, correlationId: ctx.correlationId });
-    return { coverage: check.coverage };
+    return { coverage: check.coverage, complete: check.ok, openItems: check.problems.filter((p) => !check.memberProblems.includes(p)) };
   });
 }
 
