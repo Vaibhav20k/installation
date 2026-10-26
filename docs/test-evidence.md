@@ -109,3 +109,25 @@ Headless Chrome with a fake camera, as EMP-020 at 390 px:
 - 0 px overflow and no console errors
 
 This left an open shift for EMP-020 in the demo database.
+
+## Employee skill cards (24 Oct 2026)
+
+`npx tsc --noEmit`: 0 errors. `npx vitest run` (three forks): **25 files, 176 tests, all passed**. `npm run build` succeeded.
+
+| Test | Proves |
+|---|---|
+| `integration/skill-cards.test.ts` (10) | Manager, supervisor and worker refused by every card query and action; the page is admin-only. 40 people paged 24 at a time, with derived availability, current visit and next available date. Releasing a booking makes the person available. Skill, minimum-level and expired filters work. A level change clears verification, records why (level, notes, unverified) and refuses a stale version; history is append-only. Verification uses the existing capability rule; self-verification is refused; duplicate skills are refused. Card evidence is admin-only to link and to read. A one-person draft is saved as non-blocking proposals and reported incomplete; confirming an incomplete team is refused. Attendance rows are unchanged. Inactive people and out-of-order dates are refused. **Two simultaneous assignments of one person to overlapping booked visits: exactly one succeeds** |
+| `unit/availability.test.ts` (4) | Next available date: a booking ending mid-day, back-to-back bookings, Sundays, holidays and leave; nothing found within 90 days gives null, never a guess |
+| `integration/flow.test.ts` (fixed) | Picked "another employee" as a fixed ID that, in random UUID order, could be the team member under test; it now picks someone else |
+
+Browser, production build on :3300, headless Chrome:
+- **As EMP-004 (admin):**
+  - 24 cards load in about 1.2 s; the filter for stone fitting at High leaves 2 cards.
+  - The details drawer opens with focus inside, and Esc closes it.
+  - A level edit with a reason is saved and shown in the history.
+  - The assign drawer lists its checks: availability, team coverage, clearance, readiness and plan state.
+  - Saving a draft reports "Not complete yet: Team has 2 members; configured team size is 3".
+  - The list view shows 24 rows.
+  - At 390 px there is no overflow, and there were no console errors.
+- **As EMP-001 (manager), EMP-008 (supervisor) and EMP-020 (worker):** `/skill-cards` returns 404 and the menu has no link to it.
+- **EMP-020's My day:** still loads with the shift panel.
