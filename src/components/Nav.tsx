@@ -8,10 +8,10 @@ import Link, { useLinkStatus } from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  ChartBar, CalendarDots, Clock, ClockCountdown, Cube, DotsNine, GearSix, HardHat, Kanban, ListChecks, Receipt, SealCheck, SquaresFour, Tray, UsersThree, type Icon,
+  ChartBar, CalendarDots, Clock, ClockCountdown, Cube, DotsNine, GearSix, HardHat, IdentificationCard, Kanban, ListChecks, Receipt, SealCheck, SquaresFour, Tray, UsersThree, type Icon,
 } from "@phosphor-icons/react";
 
-interface Item { href: string; label: string; short: string; icon: Icon; staff?: boolean }
+interface Item { href: string; label: string; short: string; icon: Icon; staff?: boolean; admin?: boolean }
 
 const ITEMS: Item[] = [
   { href: "/installations", label: "Installations", short: "Sites", icon: Kanban, staff: true },
@@ -25,6 +25,7 @@ const ITEMS: Item[] = [
   { href: "/projects", label: "Projects", short: "Projects", icon: Cube },
   { href: "/timesheets", label: "Timesheets", short: "Time", icon: Clock },
   { href: "/people", label: "People & Skills", short: "People", icon: UsersThree },
+  { href: "/skill-cards", label: "Skill cards", short: "Cards", icon: IdentificationCard, admin: true },
   { href: "/expenses", label: "Expenses", short: "Expenses", icon: Receipt },
   { href: "/reports", label: "Reports", short: "Reports", icon: ChartBar },
   { href: "/settings", label: "Settings", short: "Settings", icon: GearSix },
@@ -43,7 +44,8 @@ function Pending() {
 function useNav(role: string) {
   const path = usePathname();
   const isCurrent = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`) || (href === "/planning" && path.startsWith("/visits")));
-  const visible = ITEMS.filter((i) => !i.staff || role !== "employee");
+  // Navigation only mirrors permissions; every page and action checks them again on the server.
+  const visible = ITEMS.filter((i) => (!i.staff || role !== "employee") && (!i.admin || role === "admin"));
   return { path, isCurrent, visible };
 }
 

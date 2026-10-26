@@ -6,28 +6,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { ArrowCounterClockwise, Camera, SignIn, X } from "@phosphor-icons/react";
-import { completeEvidenceUpload, createEvidenceUpload } from "@/app/actions";
+import { shrinkImage, uploadPhotoNow } from "@/lib/photo-upload";
 
 type Phase = "starting" | "live" | "captured" | "fallback" | "uploading";
-
-async function shrink(source: CanvasImageSource, w: number, h: number): Promise<File> {
-  const scale = Math.min(1, 960 / Math.max(w, h));
-  const c = document.createElement("canvas");
-  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
-  c.getContext("2d")!.drawImage(source, 0, 0, c.width, c.height);
-  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("Could not read the photo"))), "image/jpeg", 0.82));
-  return new File([blob], `clock-in-${Date.now()}.jpg`, { type: "image/jpeg" });
-}
-
-/** Upload one file now (not via the background queue): clock-in waits for it. */
-async function uploadNow(file: File, draftKey: string) {
-  const s = await createEvidenceUpload({ draftKey, context: "attendance.clock_in", fileName: file.name, mime: file.type, size: file.size, idempotencyKey: crypto.randomUUID() });
-  if (!s.ok) throw new Error(s.message);
-  const put = await fetch(s.data.uploadUrl, { method: "PUT", body: file });
-  if (!put.ok) throw new Error((await put.json().catch(() => ({ message: "Upload failed" }))).message ?? "Upload failed");
-  const done = await completeEvidenceUpload({ sessionId: s.data.sessionId });
-  if (!done.ok) throw new Error(done.message);
-}
 
 export function ClockInCamera({ label, onClockIn, onCancel }: { label: string; onClockIn: (photoDraftKey: string) => Promise<boolean>; onCancel: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -54,7 +35,7 @@ export function ClockInCamera({ label, onClockIn, onCancel }: { label: string; o
   const capture = async () => {
     const v = video.current;
     if (!v || !v.videoWidth) return;
-    const f = await shrink(v, v.videoWidth, v.videoHeight);
+    const f = await shrinkImage(v, v.videoWidth, v.videoHeight, 960, `clock-in-${Date.now()}.jpg`);
     stop();
     setPhoto(f); setPreview(URL.createObjectURL(f)); setPhase("captured");
   };
@@ -62,7 +43,7 @@ export function ClockInCamera({ label, onClockIn, onCancel }: { label: string; o
     const file = files?.[0];
     if (!file) return;
     const img = await createImageBitmap(file).catch(() => null);
-    const f = img ? await shrink(img, img.width, img.height) : file;
+    const f = img ? await shrinkImage(img, img.width, img.height, 960, `clock-in-${Date.now()}.jpg`) : file;
     setPhoto(f); setPreview(URL.createObjectURL(f)); setPhase("captured");
   };
   const retake = () => { setPhoto(null); setPreview(null); void start(); };
@@ -71,7 +52,7 @@ export function ClockInCamera({ label, onClockIn, onCancel }: { label: string; o
     setPhase("uploading"); setError(null);
     const key = crypto.randomUUID();
     try {
-      await uploadNow(photo, key);
+      await uploadPhotoNow(photo, key, "attendance.clock_in");
       const ok = await onClockIn(key);
       if (!ok) setPhase("captured");
     } catch (e) { setError((e as Error).message); setPhase("captured"); }
