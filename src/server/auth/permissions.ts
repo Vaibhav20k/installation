@@ -30,6 +30,11 @@ export function requireRole(actor: Actor, role: PermissionRole, action = "this a
   if (!atLeast(actor, role)) throw forbidden(`Only a ${role} or above can perform ${action}.`);
 }
 
+/** Admin-only areas (employee skill cards): exactly the Admin permission, not "manager or above". */
+export function requireAdmin(actor: Actor, action = "this area") {
+  if (actor.role !== "admin") throw forbidden(`Only an administrator can use ${action}.`);
+}
+
 export function hasCapability(actor: Actor, cap: Capability) {
   return actor.role === "admin" || actor.capabilities.includes(cap);
 }

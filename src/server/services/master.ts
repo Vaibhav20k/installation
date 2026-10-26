@@ -7,6 +7,7 @@ import { audit } from "../audit";
 import { forbidSelfApproval, requireCapability, requireEmployeeScope, requireProjectScope, requireRole } from "../auth/permissions";
 import { conflict, validation } from "../errors";
 import { bumpVersion, one, parse, zDate, zId, zQty, zVersion, type Ctx } from "./context";
+import { recordSkillChange } from "./skill-history";
 
 const JOB_ROLES = ["project_manager", "operator", "site_supervisor", "carpenter", "helper", "senior_technician", "technician", "junior_technician", "assistant_technician", "stone_technician"] as const;
 
@@ -141,17 +142,20 @@ export async function updateEmployee(ctx: Ctx, input: unknown) {
 export async function addEmployeeSkill(ctx: Ctx, input: unknown) {
   const d = parse(z.object({
     employeeId: zId, skillId: zId, level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-    validFrom: zDate.optional(), validTo: zDate.optional(),
+    validFrom: zDate.optional(), validTo: zDate.optional(), notes: z.string().trim().max(500).optional(), reason: z.string().trim().max(300).optional(),
   }), input);
   requireRole(ctx.actor, "supervisor", "recording skills");
   await requireEmployeeScope(ctx.db, ctx.actor, d.employeeId);
   if (d.validFrom && d.validTo && d.validTo < d.validFrom) throw validation("Valid-to date is before valid-from date.");
   return ctx.db.tx(async (q) => {
     // A claimed level is recorded unverified; verification is a separate protected action.
+    const [dup] = await q.query("select 1 from employee_skill where employee_id = $1 and skill_id = $2 and (valid_to is null or valid_to >= current_date) limit 1", [d.employeeId, d.skillId]);
+    if (dup) throw conflict("This person already has a current record for this skill. Edit that record instead.");
     const [r] = await q.query<{ id: string }>(
-      `insert into employee_skill(employee_id, skill_id, level, verified, valid_from, valid_to) values ($1,$2,$3,false,$4,$5) returning id`,
-      [d.employeeId, d.skillId, d.level, d.validFrom ?? null, d.validTo ?? null]);
-    await audit(q, { actorId: ctx.actor.id, action: "add_skill", objectType: "employee_skill", objectId: r!.id, after: d, correlationId: ctx.correlationId });
+      `insert into employee_skill(employee_id, skill_id, level, verified, valid_from, valid_to, notes) values ($1,$2,$3,false,$4,$5,$6) returning id`,
+      [d.employeeId, d.skillId, d.level, d.validFrom ?? null, d.validTo ?? null, d.notes ?? null]);
+    await recordSkillChange(q, { employeeSkillId: r!.id, employeeId: d.employeeId, change: "claimed", after: { level: d.level, validFrom: d.validFrom ?? null, validTo: d.validTo ?? null, notes: d.notes ?? null }, reason: d.reason ?? null, actorId: ctx.actor.id });
+    await audit(q, { actorId: ctx.actor.id, action: "add_skill", objectType: "employee_skill", objectId: r!.id, after: d, reason: d.reason, correlationId: ctx.correlationId });
     return { id: r!.id };
   });
 }
@@ -160,13 +164,16 @@ export async function verifySkill(ctx: Ctx, input: unknown) {
   const d = parse(z.object({ employeeSkillId: zId, verified: z.boolean(), validTo: zDate.nullable().optional(), note: z.string().max(300).optional() }), input);
   requireCapability(ctx.actor, "skill_verify", "Skill verification");
   return ctx.db.tx(async (q) => {
-    const s = await one<{ employee_id: string; verified: boolean; level: number }>(q, "select employee_id, verified, level from employee_skill where id = $1", [d.employeeSkillId], "Skill record");
+    const s = await one<{ employee_id: string; verified: boolean; level: number; valid_to: string | null }>(q, "select employee_id, verified, level, valid_to::text from employee_skill where id = $1 for update", [d.employeeSkillId], "Skill record");
     forbidSelfApproval(ctx.actor, s.employee_id, "skill record");
     await requireEmployeeScope(q, ctx.actor, s.employee_id);
     await q.query(
       `update employee_skill set verified = $2, verified_by = case when $2 then $3::uuid end, verified_at = case when $2 then now() end,
          valid_to = case when $4::boolean then $5::date else valid_to end where id = $1`,
       [d.employeeSkillId, d.verified, ctx.actor.id, d.validTo !== undefined, d.validTo ?? null]);
+    await q.query("update employee_skill set version = version + 1 where id = $1", [d.employeeSkillId]);
+    await recordSkillChange(q, { employeeSkillId: d.employeeSkillId, employeeId: s.employee_id, change: d.verified ? "verified" : "unverified",
+      before: { verified: s.verified, level: s.level, validTo: s.valid_to }, after: { verified: d.verified, level: s.level, validTo: d.validTo !== undefined ? d.validTo : s.valid_to }, reason: d.note ?? null, actorId: ctx.actor.id });
     await audit(q, { actorId: ctx.actor.id, action: d.verified ? "verify_skill" : "unverify_skill", objectType: "employee_skill", objectId: d.employeeSkillId, before: s, after: d, reason: d.note, correlationId: ctx.correlationId });
   });
 }

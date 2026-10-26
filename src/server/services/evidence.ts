@@ -17,7 +17,7 @@ import { iso, one, parse, zId, type Ctx } from "./context";
 export const EVIDENCE_LIMITS = { imageBytes: 15 * 1024 * 1024, videoBytes: 200 * 1024 * 1024, filesPerForm: 10 } as const;
 export const PARENT_TYPES = ["progress_event", "visit_task", "attendance_event", "shift_instance", "attendance_correction", "time_entry", "ot_request", "expense",
   "leave_request", "delay_event", "readiness_check", "schedule_day", "quality_case", "issue", "acceptance", "additional_work", "package_exception", "design_request",
-  "communication_log", "employee_skill", "site_restriction", "appliance_dependency", "quantity_snapshot", "substitution", "scan_event", "design_revision"] as const;
+  "communication_log", "employee_skill", "site_restriction", "appliance_dependency", "quantity_snapshot", "substitution", "scan_event", "design_revision", "employee_skill_change", "employee_portrait"] as const;
 export type ParentType = (typeof PARENT_TYPES)[number];
 
 /** Where each parent type's project lives, for project-scoped records. */
@@ -53,8 +53,20 @@ const OWNER_OF: Partial<Record<ParentType, string>> = {
   employee_skill: "select employee_id from employee_skill where id = $1",
 };
 
+/** Skill-card evidence and portraits follow the cards: administrators only, for link and read alike. */
+const ADMIN_ONLY: Partial<Record<ParentType, string>> = {
+  employee_skill_change: "select 1 from employee_skill_change where id = $1",
+  employee_portrait: "select 1 from employee where id = $1",
+};
+
 /** Throws unless the actor may attach to (mode "link") or view (mode "read") evidence on this exact record. */
 export async function authorizeParent(q: Queryable, actor: Actor, type: ParentType, id: string, mode: "link" | "read") {
+  const adminSql = ADMIN_ONLY[type];
+  if (adminSql) {
+    if (actor.role !== "admin") throw forbidden("Employee skill cards and their attachments are for administrators only.");
+    if (!(await q.query(adminSql, [id])).length) throw notFound("Record");
+    return;
+  }
   if (type === "leave_request") {
     const [r] = await q.query<{ employee_id: string }>(OWNER_OF.leave_request!, [id]);
     if (!r) throw notFound("Leave request");
@@ -196,8 +208,10 @@ export async function authorizeAssetRead(q: Queryable, actor: Actor, assetId: st
   const a = await one<{ uploader_id: string; storage_key: string; mime: string; state: string; original_name: string }>(q,
     "select uploader_id, storage_key, mime, state, original_name from evidence_asset where id = $1", [assetId], "Attachment");
   if (a.state !== "ready") throw notFound("Attachment");
-  if (a.uploader_id === actor.id) return a;
   const links = await q.query<{ parent_type: ParentType; parent_id: string }>("select parent_type, parent_id from evidence_link where asset_id = $1 and status = 'active'", [assetId]);
+  // Linked to a skill card: administrators only, even for the person who uploaded it.
+  if (links.some((l) => ADMIN_ONLY[l.parent_type]) && actor.role !== "admin") throw forbidden("You cannot open this attachment.");
+  if (a.uploader_id === actor.id) return a;
   for (const l of links) {
     try { await authorizeParent(q, actor, l.parent_type, l.parent_id, "read"); return a; } catch { /* try the next link */ }
   }
