@@ -1,0 +1,2 @@
+# Playwright skips spec files with CRLF line endings without any warning, so keep them LF on every checkout.
+tests/e2e/*.ts text eol=lf

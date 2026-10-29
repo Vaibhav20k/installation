@@ -8,3 +8,9 @@ next-env.d.ts
 
 # Local design-tool session state
 .impeccable/questions/
+
+# Test runs: throwaway E2E database/files and coverage output
+.e2e/
+coverage/
+test-results/
+playwright-report/
