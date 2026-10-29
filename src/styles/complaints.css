@@ -1,0 +1,89 @@
+/* Complaint tracker for the Installation Manager (28 Oct 2026): the Complaints view on /dispatch and the
+   five-phase strip at the top of a complaint. Phases read Planning, Purchase, QC, Production, Dispatched. */
+
+/* ---------- Filters: Open / Closed, then phase chips ---------- */
+.ct-intro { margin: 0; max-width: 68ch; }
+.ct-filters { display: grid; gap: 10px; min-width: 0; }
+.ct-seg { display: inline-flex; justify-self: start; gap: 2px; padding: 3px; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); background: var(--plate); box-shadow: var(--shadow); }
+.ct-seg a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--radius-pill); color: var(--ink); font: 600 14.5px/1 var(--font-ui); text-decoration: none; white-space: nowrap; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.ct-seg a[aria-current] { background: var(--ink); color: var(--plate); }
+.ct-chips { display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px 4px; }
+.ct-chips::-webkit-scrollbar { display: none; }
+@media (min-width: 960px) { .ct-chips { flex-wrap: wrap; margin: 0 -2px; padding: 2px; } }
+.ct-chips a { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--rule); border-radius: var(--radius-pill); background: var(--plate); color: var(--ink); font: 600 13.5px/1 var(--font-ui); text-decoration: none; white-space: nowrap; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.ct-chips a[data-zero] { color: var(--ink-3); }
+.ct-chips a[aria-current] { border-color: var(--ink); background: var(--plate-3); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.ct-seg a:focus-visible, .ct-chips a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ct-seg a:active, .ct-chips a:active { transform: scale(0.97); }
+.ct-n { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: var(--radius-pill); background: var(--plate-3); color: var(--ink); font: 650 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+.ct-seg a[aria-current] .ct-n { background: color-mix(in srgb, var(--plate) 22%, transparent); color: var(--plate); }
+.ct-chips a[aria-current] .ct-n { background: var(--plate); }
+.ct-n[data-alert], .ct-seg a[aria-current] .ct-n[data-alert] { background: var(--signal); color: #fff; }
+@media (hover: hover) and (pointer: fine) {
+  .ct-seg a:not([aria-current]):hover { background: var(--plate-2); }
+  .ct-chips a:not([aria-current]):hover { border-color: var(--ink-3); background: var(--plate-2); }
+}
+
+/* ---------- Cards ---------- */
+.ct-section[data-tone="bad"] > .flow-subhead { color: var(--signal); }
+.ct-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+@media (min-width: 900px) { .ct-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ct-card { position: relative; display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px 16px; border: 1px solid var(--rule); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--plate); color: var(--ink); box-shadow: var(--shadow); }
+.ct-card[data-overdue] { border-left-color: var(--signal); }
+.ct-card[data-status="closed"] { border-left-color: var(--ok); }
+.ct-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ct-code { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-kind, .ct-priority { flex: none; display: inline-flex; align-items: center; min-height: 24px; padding: 3px 10px; border-radius: var(--radius-pill); font: 650 12px/1.2 var(--font-ui); white-space: nowrap; }
+.ct-kind[data-kind="damaged"] { background: var(--signal-soft); color: var(--signal); }
+.ct-kind[data-kind="missing"] { background: var(--warn-soft); color: var(--warn); }
+.ct-priority[data-level="high"] { background: var(--signal-soft); color: var(--signal); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--signal) 45%, transparent); }
+.ct-priority[data-level="urgent"] { background: var(--signal); color: var(--signal-ink); }
+.ct-title { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.ct-link { color: inherit; text-decoration: none; }
+/* The item name is the link; its ::after covers the card so the whole card is the tap target. */
+.ct-link::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: var(--radius); }
+.ct-link:focus-visible { outline: none; }
+.ct-link:focus-visible::after { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ct-sub { margin: -4px 0 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.ct-status { margin: 0; font-size: 14px; line-height: 1.4; color: var(--ink-2); }
+.ct-status strong { color: var(--ink); font-weight: 650; }
+.ct-status-step { color: var(--ink-3); }
+.ct-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: var(--ink-2); }
+.ct-meta [data-tone="bad"] { color: var(--signal); font-weight: 600; }
+.ct-card:has(.ct-link:active) { transform: scale(0.99); }
+@media (hover: hover) and (pointer: fine) {
+  .ct-card:hover { border-top-color: var(--ink-3); border-right-color: var(--ink-3); border-bottom-color: var(--ink-3); }
+}
+.ct-empty a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+
+/* ---------- The five dots ---------- */
+.ct-dots { --dot: 14px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); list-style: none; margin: 2px 0 0; padding: 0; }
+.ct-dots[data-size="lg"] { --dot: 18px; }
+.ct-dots li { position: relative; display: grid; justify-items: center; align-content: start; gap: 6px; min-width: 0; text-align: center; }
+/* The line into each dot from the previous one: green once that phase is reached, dashed when skipped. */
+.ct-dots li::before { content: ""; position: absolute; top: calc(var(--dot) / 2 - 1px); right: 50%; width: 100%; height: 2px; background: var(--rule-strong); }
+.ct-dots li:first-child::before { display: none; }
+.ct-dots li[data-state="done"]::before, .ct-dots li[data-state="current"]::before { background: var(--ok); }
+.ct-dots li[data-state="skipped"]::before { background: repeating-linear-gradient(90deg, var(--rule-strong) 0 4px, transparent 4px 8px); }
+.ct-dot { position: relative; z-index: 1; display: grid; place-items: center; width: var(--dot); height: var(--dot); border-radius: 50%; border: 2px solid var(--rule-strong); background: var(--plate); color: var(--plate); }
+.ct-dot-label { display: grid; font-size: 11.5px; line-height: 1.25; color: var(--ink-3); max-width: 100%; overflow-wrap: anywhere; }
+.ct-dots[data-size="lg"] .ct-dot-label { font-size: 12.5px; }
+@media (min-width: 480px) { .ct-dot-label { font-size: 12.5px; } .ct-dots[data-size="lg"] .ct-dot-label { font-size: 13.5px; } }
+.ct-dot-note { font-size: 10.5px; font-weight: 500; color: var(--ink-3); }
+.ct-dots li[data-state="done"] .ct-dot { background: var(--ok); border-color: var(--ok); }
+.ct-dots li[data-state="done"] .ct-dot-label { color: var(--ink-2); }
+.ct-dots li[data-state="current"] .ct-dot { background: var(--ink); border-color: var(--ink); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 14%, transparent); }
+.ct-dots li[data-state="current"] .ct-dot-label { color: var(--ink); font-weight: 650; }
+.ct-card[data-overdue] .ct-dots li[data-state="current"] .ct-dot { background: var(--signal); border-color: var(--signal); box-shadow: 0 0 0 4px var(--signal-soft); }
+.ct-dots li[data-state="skipped"] .ct-dot { border-style: dashed; background: var(--plate); }
+
+/* ---------- Strip at the top of a complaint ---------- */
+.ct-strip { display: grid; gap: 8px; min-width: 0; padding: 14px 16px 16px; border-radius: var(--radius); background: var(--plate); box-shadow: var(--shadow); }
+.ct-strip .ct-status { font-size: 15.5px; }
+.ct-strip-says { margin: -4px 0 4px; color: var(--ink-2); max-width: 68ch; }
+
+/* ---------- Motion: press and hover feedback only, none on reduced motion ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .ct-seg a, .ct-chips a { transition: background var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), border-color var(--dur-quick) var(--ease-out), transform var(--dur-press) var(--ease-press); }
+  .ct-card { transition: border-color var(--dur-quick) var(--ease-out), transform var(--dur-press) var(--ease-press); }
+}
