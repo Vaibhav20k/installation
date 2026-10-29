@@ -7,7 +7,7 @@ import { completeEvidenceUpload, createEvidenceUpload, linkEvidence, removeDraft
 
 export type ItemState = "queued" | "uploading" | "validating" | "ready" | "failed" | "cancelled";
 export interface QueueItem {
-  id: string; draftKey: string; context: string; file: File; name: string; mediaType: "image" | "video"; preview: string | null;
+  id: string; draftKey: string; context: string; file: File; name: string; mediaType: "image" | "video" | "document"; preview: string | null;
   state: ItemState; progress: number; error: string | null; assetId: string | null; sessionId: string | null; caption: string; idempotencyKey: string;
 }
 interface Parent { parentType: string; parentId: string }
@@ -27,7 +27,7 @@ export const uploadQueue = {
   getSnapshot() { return snapshot; },
   add(draftKey: string, context: string, files: FileList | File[]) {
     for (const file of Array.from(files)) {
-      const mediaType = file.type.startsWith("video/") ? "video" : "image";
+      const mediaType = file.type.startsWith("video/") ? "video" : file.type === "application/pdf" ? "document" : "image";
       const id = crypto.randomUUID();
       items.set(id, { id, draftKey, context, file, name: file.name, mediaType, preview: mediaType === "image" ? URL.createObjectURL(file) : null,
         state: "queued", progress: 0, error: null, assetId: null, sessionId: null, caption: "", idempotencyKey: crypto.randomUUID() });

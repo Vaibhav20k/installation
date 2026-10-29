@@ -16,7 +16,7 @@ export async function planningBoard(q: Queryable, actor: Actor, opts: { from: st
   const end = startOfLocalDay(addDays(opts.from, opts.days), TZ);
   const ef = await employeeFilter(q, actor, "e.id", 1);
   const params: unknown[] = [...ef.params];
-  let where = `${ef.sql} and e.active and e.job_role not in ('project_manager','operator')`;
+  let where = `${ef.sql} and e.active and e.job_role not in ('project_manager','operator','department_staff')`;
   if (opts.role) { params.push(opts.role); where += ` and e.job_role = $${params.length}`; }
   if (opts.managerId) { params.push(opts.managerId); where += ` and e.manager_id = $${params.length}`; }
   if (opts.skill) { params.push(opts.skill); where += ` and exists (select 1 from employee_skill es join skill s on s.id = es.skill_id where es.employee_id = e.id and s.code = $${params.length} and es.verified)`; }

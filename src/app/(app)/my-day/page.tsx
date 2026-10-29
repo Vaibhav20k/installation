@@ -9,16 +9,29 @@ import { DayProgress } from "@/components/time/DayProgress";
 import { TimeEntryForm } from "@/components/time/TimeEntryForm";
 import { AttendancePanel, type PanelShift } from "@/components/attendance/AttendancePanel";
 import { currentAttendance } from "@/server/queries/attendance";
+import { autoClosedMessage } from "@/server/services/attendance";
+import { AutoClosedNotice } from "@/components/attendance/AutoClosedNotice";
 import { shortDate } from "@/domain/install-schedule";
 import { AdditionalWorkForm } from "@/components/project/CommercialForms";
 import { ScanBox, PackageExceptionForm } from "@/components/project/PackageForms";
+import { SiteCheck } from "@/components/install/PresenceForms";
+import { CheckRow } from "@/components/install/WorkForms";
+import { myPresence, todaysWork } from "@/server/queries/site-ops";
+import { addDays, localDateOf } from "@/lib/dates";
+import { myMndReports, reportableLines } from "@/server/services/site-mnd";
+import { SiteMndReport } from "@/components/install/SiteMndReport";
 
 export const metadata = { title: "My day" };
 
-export default async function MyDayPage() {
+export default async function MyDayPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
   const { db, actor } = await session();
   const now = Date.now();
   const d = await myDay(db, actor, now);
+  // Today's work: any chosen date (bounded to a year either side); defaults to today.
+  const workDate = /^\d{4}-\d{2}-\d{2}$/.test(sp.workdate ?? "") && Math.abs(Date.parse(sp.workdate!) - now) < 366 * 86400000 ? sp.workdate! : d.today;
+  const [presence, work, mndSites, mndMine] = await Promise.all([myPresence(db, actor, now), todaysWork(db, actor, workDate), reportableLines(db, actor, now), myMndReports(db, actor)]);
+  const staleOpen = !!presence.open && localDateOf(Number(presence.open.check_in_at), presence.open.timezone) < localDateOf(now, presence.open.timezone);
   const att = await currentAttendance(db, actor, d.today, now);
   const c = att.current;
   const panel: PanelShift | null = c ? {
@@ -37,11 +50,46 @@ export default async function MyDayPage() {
         <p className="muted small" style={{ margin: 0 }}>{d.today} · entries save to the server straight away; this screen needs a connection.</p>
       </div>
 
+      <AutoClosedNotice items={att.missed.filter((m) => m.shift.auto_closed).map((m) => ({ shiftId: m.shift.id, text: autoClosedMessage(m.shift.work_date) }))} />
       <AttendancePanel shift={panel} serverNow={now} employeeFirstName={first} today={shortDate(d.today)}
         visitLabel={att.visit ? `${att.visit.business_id} · ${att.visit.project}` : d.visit ? `${d.visit.business_id} · ${d.visit.project}` : null} />
-      {att.missed.length > 0 && (
-        <p className="notice" data-tone="warn" role="status">You did not clock out on {att.missed.map((m) => shortDate(m.shift.work_date)).join(", ")}. That day stays provisional; open My attendance and request the correct clock-out time.</p>
+      {att.missed.some((m) => !m.shift.auto_closed) && (
+        <p className="notice" data-tone="warn" role="status">You did not clock out on {att.missed.filter((m) => !m.shift.auto_closed).map((m) => shortDate(m.shift.work_date)).join(", ")}. That day stays provisional; open My attendance and request the correct clock-out time.</p>
       )}
+
+      <section className="plate" aria-labelledby="h-site-check">
+        <div className="plate-head"><h2 id="h-site-check" style={{ margin: 0 }}>Site check-in</h2>{presence.open && !staleOpen ? <span className="code-tag">on site</span> : null}</div>
+        <SiteCheck sites={presence.sites} open={presence.open} stale={staleOpen} recent={presence.recent} />
+      </section>
+
+      {(mndSites.length > 0 || mndMine.length > 0) && (
+        <section className="plate" id="report-mnd" aria-labelledby="h-mnd">
+          <div className="plate-head"><h2 id="h-mnd" style={{ margin: 0 }}>Report missing or damaged</h2>{mndMine.some((m) => m.status === "pending") ? <span className="code-tag">{mndMine.filter((m) => m.status === "pending").length} waiting</span> : null}</div>
+          <SiteMndReport sites={mndSites} mine={mndMine} />
+        </section>
+      )}
+
+      <section className="plate" id="work" aria-labelledby="h-work-today">
+        <div className="plate-head"><h2 id="h-work-today" style={{ margin: 0 }}>{workDate === d.today ? "Today's work" : `Work for ${shortDate(workDate)}`}</h2><span className="code-tag">{work.today.filter((i) => i.done_at !== null).length} of {work.today.length} done</span></div>
+        <nav className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 10 }} aria-label="Choose a date">
+          <a className="button" href={`/my-day?workdate=${addDays(workDate, -1)}#work`}>Previous day</a>
+          {workDate !== d.today && <a className="button" href="/my-day#work">Today</a>}
+          <a className="button" href={`/my-day?workdate=${addDays(workDate, 1)}#work`}>Next day</a>
+        </nav>
+        {work.overdue.length > 0 && (
+          <>
+            <h3 className="section-label" style={{ color: "var(--signal)" }}>Not done from earlier days <span className="code">{work.overdue.length}</span></h3>
+            <ul className="check-list" style={{ marginBottom: 12 }}>{work.overdue.slice(0, 5).map((i) => <CheckRow key={i.id} item={i} overdue />)}</ul>
+            {work.overdue.length > 5 && (
+              <details style={{ marginBottom: 12 }}><summary className="small">Show {work.overdue.length - 5} more from earlier days</summary>
+                <ul className="check-list" style={{ marginTop: 8 }}>{work.overdue.slice(5).map((i) => <CheckRow key={i.id} item={i} overdue />)}</ul>
+              </details>
+            )}
+          </>
+        )}
+        {work.today.length === 0 ? <p className="muted" style={{ margin: 0 }}>No checklist items are assigned to you for {shortDate(workDate)}.</p> : <ul className="check-list">{work.today.map((i) => <CheckRow key={i.id} item={i} />)}</ul>}
+        <p className="small muted" style={{ margin: "10px 0 0" }}>Ticking reports the item done for your task team; your supervisor still accepts quantities and the customer signs off on the visit.</p>
+      </section>
 
       {!d.visit ? (
         <section className="plate">

@@ -3,14 +3,16 @@
  */
 import type { Db } from "./client";
 import { seedMaster } from "./seed-master";
+import { seedFlowDemo } from "./seed-flow";
 
 export async function seedIfEmpty(db: Db, opts: { operational?: boolean } = {}) {
   const [row] = await db.query<{ n: number }>("select count(*)::int as n from employee");
-  if (row && row.n > 0) return false;
+  if (row && row.n > 0) { await db.tx((q) => seedFlowDemo(q)); return false; }
   await db.tx((q) => seedMaster(q));
   if (opts.operational !== false) {
     const { seedOperational } = await import("./seed-operational");
     await seedOperational(db);
   }
+  await db.tx((q) => seedFlowDemo(q));
   return true;
 }

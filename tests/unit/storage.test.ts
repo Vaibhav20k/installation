@@ -23,7 +23,10 @@ describe("content sniffing (extension and declared MIME are not trusted)", () =>
     expect(sniff(b([0, 0, 0, 0x14], "ftypqt  "))?.mime).toBe("video/quicktime");
     expect(sniff(b([0x1a, 0x45, 0xdf, 0xa3]))?.mime).toBe("video/webm");
   });
-  it("rejects anything else, including text, PDF, scripts and SVG", () => {
-    for (const x of ["hello world", "%PDF-1.7", "<svg xmlns=", "#!/bin/sh", "MZ\u0090\u0000"]) expect(sniff(Buffer.from(x, "latin1"))).toBeNull();
+  it("rejects anything else, including text, scripts and SVG", () => {
+    for (const x of ["hello world", "<svg xmlns=", "#!/bin/sh", "MZ\u0090\u0000"]) expect(sniff(Buffer.from(x, "latin1"))).toBeNull();
+  });
+  it("recognises a PDF as a document (accepted only on dispatch-flow stages)", () => {
+    expect(sniff(Buffer.from("%PDF-1.7", "latin1"))).toEqual({ mediaType: "document", mime: "application/pdf", ext: "pdf" });
   });
 });

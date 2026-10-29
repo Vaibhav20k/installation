@@ -1,5 +1,5 @@
 "use client";
-import { addEmployeeSkill, recordLeave, verifySkill } from "@/app/actions";
+import { addEmployeeSkill, recordLeave, updateEmployeeSkill, verifySkill } from "@/app/actions";
 import { useState } from "react";
 import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
@@ -59,5 +59,27 @@ export function SkillForms({ employeeId, skills, records, canVerify, canRecordLe
         </form>
       )}
     </div>
+  );
+}
+
+/** Correct an existing skill record. A changed level clears verification; every change needs a reason and is kept. */
+export function SkillCorrect({ records }: { records: Array<{ id: string; name: string; level: number; version: number; notes: string | null }> }) {
+  const save = useAction(updateEmployeeSkill);
+  const [id, setId] = useState(records[0]?.id ?? "");
+  const r = records.find((x) => x.id === id);
+  if (!r) return null;
+  return (
+    <form key={`${r.id}-${r.version}`} className="form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); save.run({ employeeSkillId: r.id, version: r.version, level: Number(f.get("l")), notes: String(f.get("n") || "") || null, reason: String(f.get("why")) }); }}>
+      <h3>Correct a skill record</h3>
+      <div className="fields">
+        <div className="field"><label htmlFor="c-r">Record</label><select id="c-r" value={id} onChange={(e) => { setId(e.target.value); save.reset(); }}>{records.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+        <div className="field"><label htmlFor="c-l">Level</label><select id="c-l" name="l" defaultValue={r.level}><option value={1}>Low</option><option value={2}>Medium</option><option value={3}>High</option></select></div>
+      </div>
+      <div className="field"><label htmlFor="c-n">Notes</label><input id="c-n" name="n" defaultValue={r.notes ?? ""} maxLength={500} /></div>
+      <div className="field"><label htmlFor="c-why">Reason for the change</label><input id="c-why" name="why" required minLength={3} maxLength={300} /></div>
+      <p className="small muted">Changing the level clears any verification; it then needs verifying again.</p>
+      <button type="submit" disabled={save.pending}>Save correction</button>
+      <ResultNotice result={save.result} successText="Correction saved and added to the history." />
+    </form>
   );
 }

@@ -36,8 +36,8 @@ export async function employeeProfile(q: Queryable, actor: Actor, employeeId: st
     `select e.id, e.business_id, e.name, e.job_role, e.permission_role, e.capabilities, e.base_city, e.active, e.version, e.is_demo, m.name manager,
        c.name calendar, c.is_illustrative calendar_illustrative
      from employee e left join employee m on m.id = e.manager_id left join work_calendar c on c.id = e.calendar_id where e.id = $1`, [employeeId]);
-  const skills = await q.query<{ id: string; code: string; name: string; level: number; verified: boolean; verified_by: string | null; verified_at: number | null; valid_from: string | null; valid_to: string | null }>(
-    `select es.id, s.code, s.name, es.level, es.verified, v.name verified_by, es.verified_at, es.valid_from::text, es.valid_to::text
+  const skills = await q.query<{ id: string; code: string; name: string; level: number; verified: boolean; verified_by: string | null; verified_at: number | null; valid_from: string | null; valid_to: string | null; notes: string | null; version: number }>(
+    `select es.id, s.code, s.name, es.level, es.verified, v.name verified_by, es.verified_at, es.valid_from::text, es.valid_to::text, es.notes, es.version
      from employee_skill es join skill s on s.id = es.skill_id left join employee v on v.id = es.verified_by where es.employee_id = $1 order by s.code`, [employeeId]);
   const assignments = await q.query<{ visit_id: string; visit: string; project: string; project_id: string; role: string; state: string; start: number; end: number; hold_expires_at: number | null }>(
     `select v.id visit_id, v.business_id visit, p.name project, p.id project_id, r.role, r.state, lower(r.span) "start", upper(r.span) "end", r.hold_expires_at
@@ -59,7 +59,15 @@ export async function employeeProfile(q: Queryable, actor: Actor, employeeId: st
   const reserved = (await q.query<{ s: number; e: number }>("select lower(span) s, upper(span) e from reservation where employee_id = $1 and state in ('held','confirmed','released')", [employeeId])).map((r) => ({ start: r.s, end: r.e }));
   const leaveIv = (await q.query<{ s: number; e: number }>("select lower(span) s, upper(span) e from leave_record where employee_id = $1 and status = 'approved'", [employeeId])).map((r) => ({ start: r.s, end: r.e }));
   const utilization = { month, ...scheduledUtilization(reserved, working, leaveIv) };
-  return { employee: e!, skills, assignments, leave, futureReservedMinutes: workload?.minutes ?? 0, months, utilization };
+  // Who changed this person's skills and roles, and when (the skill change log and the employee audit trail).
+  const history = await q.query<{ at: number; what: string; detail: unknown; reason: string | null; actor: string | null }>(
+    `(select c.at, 'skill ' || c.change || ': ' || s.name what, c.after detail, c.reason, a.name actor from employee_skill_change c
+        join employee_skill es on es.id = c.employee_skill_id join skill s on s.id = es.skill_id left join employee a on a.id = c.actor_id where c.employee_id = $1)
+     union all
+     (select ev.at, 'employee ' || ev.action what, ev.after detail, ev.reason, a.name actor from audit_event ev left join employee a on a.id = ev.actor_id
+        where ev.object_type = 'employee' and ev.object_id = $1::text)
+     order by at desc limit 25`, [employeeId]);
+  return { employee: e!, skills, history, assignments, leave, futureReservedMinutes: workload?.minutes ?? 0, months, utilization };
 }
 
 export async function skillsCatalog(q: Queryable) {
@@ -75,5 +83,5 @@ export async function staffingCandidates(q: Queryable) {
     `select e.id, e.business_id, e.name, e.job_role,
        coalesce((select json_agg(json_build_object('code', s.code, 'level', es.level, 'verified', es.verified) order by s.code)
          from employee_skill es join skill s on s.id = es.skill_id where es.employee_id = e.id), '[]') skills
-     from employee e where e.active and e.job_role not in ('project_manager','operator') order by e.job_role, e.business_id`);
+     from employee e where e.active and e.job_role not in ('project_manager','operator','department_staff') order by e.job_role, e.business_id`);
 }

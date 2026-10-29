@@ -4,7 +4,7 @@ import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 import { ActionButton } from "@/components/ui/ActionButton";
 
-const ROLES = ["project_manager", "operator", "site_supervisor", "carpenter", "helper", "senior_technician", "technician", "junior_technician", "assistant_technician", "stone_technician"];
+const ROLES = ["project_manager", "operator", "site_supervisor", "carpenter", "helper", "senior_technician", "technician", "junior_technician", "assistant_technician", "stone_technician", "department_staff"];
 
 /** Admin-only master data changes. Deactivation keeps all history; future bookings are flagged on the planning sheet. */
 export function EmployeeAdmin({ employee }: { employee: { id: string; version: number; active: boolean; job_role: string; permission_role: string } }) {

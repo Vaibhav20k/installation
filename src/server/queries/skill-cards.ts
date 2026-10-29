@@ -34,7 +34,8 @@ export async function listCards(q: Queryable, actor: Actor, f: CardFilters, now:
   requireAdmin(actor, AREA);
   const pg = paging(f.page, 24);
   const params: unknown[] = [new Date(now).toISOString()];
-  const where: string[] = ["true"];
+  // Skill cards are for the installation workforce; department staff of the dispatch flow have none.
+  const where: string[] = ["e.job_role <> 'department_staff'"];
   const add = (sql: (n: string) => string, v: unknown) => { params.push(v); where.push(sql(`$${params.length}`)); };
   if (f.q) add((n) => `(e.name ilike ${n} or e.business_id ilike ${n})`, `%${f.q.replace(/[%_]/g, "")}%`);
   if (f.role) add((n) => `e.job_role = ${n}`, f.role);

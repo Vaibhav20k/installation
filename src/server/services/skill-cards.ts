@@ -9,7 +9,7 @@ import { requireAdmin } from "../auth/permissions";
 import { conflict, validation } from "../errors";
 import { evaluateCoverage, type EmployeeSkillRecord, type Level } from "@/domain/skills";
 import { datesBetween, localDateOf, zonedToUtc } from "@/lib/dates";
-import { addEmployeeSkill, verifySkill } from "./master";
+import { addEmployeeSkill, updateEmployeeSkill, verifySkill } from "./master";
 import { bookVisit, setVisitStaffing, visitRequirements } from "./booking";
 import { updateVisitDates } from "./planning";
 import { addCrewMember } from "./site";
@@ -34,36 +34,10 @@ export async function addCardSkill(ctx: Ctx, input: unknown) {
   return { id: r.id, changeId: await latestChange(ctx, r.id) };
 }
 
-/**
- * Edit level, validity or notes. A changed level clears verification: the earlier verification was of a different
- * level, and editing must never silently mark (or keep) a skill verified. Stale edits are refused by version.
- */
+/** Edit from the card: the same audited correction as everywhere else, behind the Admin permission. */
 export async function updateCardSkill(ctx: Ctx, input: unknown) {
   requireAdmin(ctx.actor, AREA);
-  const d = parse(z.object({ employeeSkillId: zId, version: z.number().int().positive(), level: zLevel.optional(), validFrom: zDate.nullable().optional(), validTo: zDate.nullable().optional(),
-    notes: z.string().trim().max(500).nullable().optional(), reason: zReason }), input);
-  return ctx.db.tx(async (q) => {
-    const s = await one<{ employee_id: string; level: number; verified: boolean; valid_from: string | null; valid_to: string | null; notes: string | null; version: number }>(q,
-      "select employee_id, level, verified, valid_from::text, valid_to::text, notes, version from employee_skill where id = $1 for update", [d.employeeSkillId], "Skill record");
-    if (s.version !== d.version) throw conflict("This skill was changed by someone else since you opened it. Reopen the card to see the latest values.");
-    const next = { level: d.level ?? s.level, validFrom: d.validFrom !== undefined ? d.validFrom : s.valid_from, validTo: d.validTo !== undefined ? d.validTo : s.valid_to, notes: d.notes !== undefined ? d.notes : s.notes };
-    if (next.validFrom && next.validTo && next.validTo < next.validFrom) throw validation("Valid-to date is before valid-from date.");
-    const changes: Array<{ change: "level" | "validity" | "notes" | "unverified"; before: unknown; after: unknown }> = [];
-    if (next.level !== s.level) changes.push({ change: "level", before: { level: s.level }, after: { level: next.level } });
-    if (next.level !== s.level && s.verified) changes.push({ change: "unverified", before: { verified: true }, after: { verified: false, why: "level changed; needs fresh verification" } });
-    if (next.validFrom !== s.valid_from || next.validTo !== s.valid_to) changes.push({ change: "validity", before: { validFrom: s.valid_from, validTo: s.valid_to }, after: { validFrom: next.validFrom, validTo: next.validTo } });
-    if ((next.notes ?? null) !== (s.notes ?? null)) changes.push({ change: "notes", before: { notes: s.notes }, after: { notes: next.notes } });
-    if (!changes.length) throw validation("Nothing changed.");
-    const clearVerification = next.level !== s.level && s.verified;
-    await q.query(
-      `update employee_skill set level = $2, valid_from = $3, valid_to = $4, notes = $5, version = version + 1,
-         verified = case when $6 then false else verified end, verified_by = case when $6 then null else verified_by end, verified_at = case when $6 then null else verified_at end
-       where id = $1`, [d.employeeSkillId, next.level, next.validFrom, next.validTo, next.notes, clearVerification]);
-    let changeId = "";
-    for (const c of changes) changeId = await recordSkillChange(q, { employeeSkillId: d.employeeSkillId, employeeId: s.employee_id, ...c, reason: d.reason, actorId: ctx.actor.id });
-    await audit(q, { actorId: ctx.actor.id, action: "card_update_skill", objectType: "employee_skill", objectId: d.employeeSkillId, before: s, after: next, reason: d.reason, correlationId: ctx.correlationId });
-    return { changeId, verificationCleared: clearVerification };
-  });
+  return updateEmployeeSkill(ctx, input);
 }
 
 /** Verification from the card goes through the existing workflow: the skill-verify capability, never for oneself. */

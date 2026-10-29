@@ -11,8 +11,11 @@ describe("seed and schema", () => {
   it("has 40 demo employees, 3 managers, every job role and multiple cities", async () => {
     const [c] = await db.query<{ n: number; m: number; roles: number; cities: number; demo: number }>(
       `select count(*)::int n, count(*) filter (where permission_role='manager')::int m, count(distinct job_role)::int roles,
-              count(distinct base_city)::int cities, count(*) filter (where is_demo)::int demo from employee`);
+              count(distinct base_city)::int cities, count(*) filter (where is_demo)::int demo from employee where job_role <> 'department_staff'`);
     expect(c).toEqual({ n: 40, m: 3, roles: 10, cities: 5, demo: 40 });
+    // Plus the demo department staff of the dispatch flow (factory, accounts, QC ...), never on crew lists.
+    const [d] = await db.query<{ n: number }>("select count(*)::int n from employee where job_role = 'department_staff' and is_demo");
+    expect(d!.n).toBe(9);
   });
 
   it("scenario 1: one customer has two projects and one project has two orders", async () => {

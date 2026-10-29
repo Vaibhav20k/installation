@@ -90,8 +90,9 @@ export function verifyUpload(sessionId: string, expiresAt: number, token: string
 }
 
 /** Content sniffing: extension and browser MIME are not trusted. Returns the detected type or null. */
-export function sniff(head: Buffer): { mediaType: "image" | "video"; mime: string; ext: string } | null {
+export function sniff(head: Buffer): { mediaType: "image" | "video" | "document"; mime: string; ext: string } | null {
   const ascii = (a: number, b: number) => head.subarray(a, b).toString("latin1");
+  if (ascii(0, 5) === "%PDF-") return { mediaType: "document", mime: "application/pdf", ext: "pdf" };
   if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return { mediaType: "image", mime: "image/jpeg", ext: "jpg" };
   if (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { mediaType: "image", mime: "image/png", ext: "png" };
   if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return { mediaType: "image", mime: "image/webp", ext: "webp" };

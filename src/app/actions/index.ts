@@ -29,13 +29,21 @@ import * as customer from "@/server/services/customer";
 import * as packages from "@/server/services/packages";
 import * as skillCards from "@/server/services/skill-cards";
 import * as skillCardQueries from "@/server/queries/skill-cards";
+import * as sitePresence from "@/server/services/site-presence";
+import * as siteWork from "@/server/services/site-work";
+import * as dispatchFlow from "@/server/services/dispatch";
+import * as complaintFlow from "@/server/services/complaint";
+import * as flowAdmin from "@/server/services/flow-admin";
+import * as siteMnd from "@/server/services/site-mnd";
 
 export async function signInAs(employeeId: string) {
   if (!demoAuthEnabled()) throw new Error("Demo sign-in is disabled in production.");
   const actor = await loadActor(await getDb(), employeeId);
   if (!actor) throw new Error("Unknown or inactive employee");
   (await cookies()).set(DEMO_COOKIE, actor.id, { httpOnly: true, sameSite: "lax", path: "/" });
-  redirect(actor.role === "employee" ? "/my-day" : actor.role === "admin" ? "/installations" : "/");
+  // Department staff start on their dispatch steps; managers and administrators on the installation plans; workers on My day.
+  if (actor.jobRole === "department_staff") redirect("/dispatch");
+  redirect(actor.role === "employee" ? "/my-day" : actor.role === "admin" || actor.role === "manager" ? "/installations" : "/");
 }
 
 export async function signOut() {
@@ -201,3 +209,32 @@ export async function addCardSkill(input: unknown) { return run(skillCards.addCa
 export async function updateCardSkill(input: unknown) { return run(skillCards.updateCardSkill, input, K); }
 export async function verifyCardSkill(input: unknown) { return run(skillCards.verifyCardSkill, input, K); }
 export async function assignFromCard(input: unknown) { return run(skillCards.assignFromCard, input, K); }
+
+// Site check-in/out, the site work plan and the daily checklist (recording of 27 Oct 2026).
+const SP = ["/my-day", "/installations"];
+export async function siteCheckIn(input: unknown) { return run(sitePresence.siteCheckIn, input, SP); }
+export async function siteCheckOut(input: unknown) { return run(sitePresence.siteCheckOut, input, SP); }
+export async function correctSitePresence(input: unknown) { return run(sitePresence.correctPresence, input, ["/installations"]); }
+export async function addSitePresence(input: unknown) { return run(sitePresence.addPresence, input, ["/installations"]); }
+export async function createWorkTask(input: unknown) { return run(siteWork.createWorkTask, input, SP); }
+export async function updateWorkTask(input: unknown) { return run(siteWork.updateWorkTask, input, SP); }
+export async function addWorkItems(input: unknown) { return run(siteWork.addWorkItems, input, SP); }
+export async function setWorkItemDone(input: unknown) { return run(siteWork.setWorkItemDone, input, SP); }
+export async function rescheduleWorkItem(input: unknown) { return run(siteWork.rescheduleWorkItem, input, SP); }
+export async function updateEmployeeSkill(input: unknown) { return run(master.updateEmployeeSkill, input, ["/people", "/skill-cards", "/installations"]); }
+export async function setSiteLocation(input: unknown) { return run(site.setSiteLocation, input, ["/installations", "/projects"]); }
+
+// Dispatch to installation and the MND complaint loop; Dispatch setup is for administrators.
+const DP = ["/dispatch", "/"];
+export async function createDispatch(input: unknown) { return run(dispatchFlow.createDispatch, input, DP); }
+export async function advanceDispatch(input: unknown) { return run(dispatchFlow.advanceDispatch, input, DP); }
+export async function receiveDispatch(input: unknown) { return run(dispatchFlow.receiveDispatch, input, DP); }
+export async function moveDispatchBack(input: unknown) { return run(dispatchFlow.moveDispatchBack, input, DP); }
+export async function advanceComplaint(input: unknown) { return run(complaintFlow.advanceComplaint, input, DP); }
+export async function moveComplaintBack(input: unknown) { return run(complaintFlow.moveComplaintBack, input, DP); }
+export async function setFlowRoleMember(input: unknown) { return run(flowAdmin.setRoleMember, input, DP); }
+export async function saveFlowDefinition(input: unknown) { return run(flowAdmin.saveFlowDefinition, input, DP); }
+// Missing or damaged items found on site by the crew, confirmed or rejected by the site's Installation Manager.
+export async function reportMnd(input: unknown) { return run(siteMnd.reportMnd, input, ["/my-day", ...DP]); }
+export async function confirmMndReport(input: unknown) { return run(siteMnd.confirmMndReport, input, ["/my-day", ...DP]); }
+export async function rejectMndReport(input: unknown) { return run(siteMnd.rejectMndReport, input, ["/my-day", ...DP]); }

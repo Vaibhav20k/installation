@@ -128,15 +128,16 @@ async function seedScope(q: Queryable, managers: Array<{ id: string }>) {
   const cus3 = await id(q, `insert into customer(business_id, name, source_system, source_ref, is_demo) values ('CUS-003','Demo Customer Kapoor Family','demo_fixture','FX-C-3',true) returning id`, []);
 
   const projects = [
-    { bid: "PRJ-001", cus: cus1, name: "Mehta - Gurugram apartment", addr: "Tower 4, Sector 54 (demo address)", city: "Gurugram", mgr: managers[0]!.id, area: "620" },
-    { bid: "PRJ-002", cus: cus1, name: "Mehta - Jaipur villa", addr: "Plot 12, Vaishali Nagar (demo address)", city: "Jaipur", mgr: managers[0]!.id, area: "540" },
-    { bid: "PRJ-003", cus: cus2, name: "Rao - Bengaluru home", addr: "HSR Layout, 2nd Main (demo address)", city: "Bengaluru", mgr: managers[1]!.id, area: "700" },
-    { bid: "PRJ-004", cus: cus3, name: "Kapoor - Noida apartment", addr: "Tower B, Sector 128 (demo address)", city: "Noida", mgr: managers[0]!.id, area: "580" },
+    // Demo coordinates: approximate centre of each fictional address's locality, so the demo map is not empty.
+    { bid: "PRJ-001", cus: cus1, name: "Mehta - Gurugram apartment", addr: "Tower 4, Sector 54 (demo address)", city: "Gurugram", mgr: managers[0]!.id, area: "620", lat: "28.4356", lng: "77.1057" },
+    { bid: "PRJ-002", cus: cus1, name: "Mehta - Jaipur villa", addr: "Plot 12, Vaishali Nagar (demo address)", city: "Jaipur", mgr: managers[0]!.id, area: "540", lat: "26.9118", lng: "75.74" },
+    { bid: "PRJ-003", cus: cus2, name: "Rao - Bengaluru home", addr: "HSR Layout, 2nd Main (demo address)", city: "Bengaluru", mgr: managers[1]!.id, area: "700", lat: "12.9121", lng: "77.6446" },
+    { bid: "PRJ-004", cus: cus3, name: "Kapoor - Noida apartment", addr: "Tower B, Sector 128 (demo address)", city: "Noida", mgr: managers[0]!.id, area: "580", lat: "28.524", lng: "77.354" },
   ];
   let ord = 0, oi = 0, cmp = 0, tsk = 0;
   for (const p of projects) {
-    const pid = await id(q, `insert into project(business_id, customer_id, name, site_address, city, manager_id, kitchen_floor_area, kitchen_floor_area_unit, is_demo)
-      values ($1,$2,$3,$4,$5,$6,$7,'sqft',true) returning id`, [p.bid, p.cus, p.name, p.addr, p.city, p.mgr, p.area]);
+    const pid = await id(q, `insert into project(business_id, customer_id, name, site_address, city, manager_id, kitchen_floor_area, kitchen_floor_area_unit, is_demo, latitude, longitude)
+      values ($1,$2,$3,$4,$5,$6,$7,'sqft',true,$8,$9) returning id`, [p.bid, p.cus, p.name, p.addr, p.city, p.mgr, p.area, p.lat, p.lng]);
     const orderCount = p.bid === "PRJ-001" ? 2 : 1;
     for (let o = 0; o < orderCount; o++) {
       ord++;

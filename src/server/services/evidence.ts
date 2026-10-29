@@ -11,13 +11,14 @@ import { requireEmployeeScope, requireProjectScope, type Actor } from "../auth/p
 import { conflict, forbidden, notFound, validation } from "../errors";
 import { evidenceStorage, signUpload, sniff } from "@/integrations/storage";
 import { canSeeLeave } from "./attendance";
+import { requireFlowView, requireStageFileView } from "./flow-core";
 import { iso, one, parse, zId, type Ctx } from "./context";
 
 /** Engineering limits (not business policy): see docs/example-policy-audit.md. */
 export const EVIDENCE_LIMITS = { imageBytes: 15 * 1024 * 1024, videoBytes: 200 * 1024 * 1024, filesPerForm: 10 } as const;
 export const PARENT_TYPES = ["progress_event", "visit_task", "attendance_event", "shift_instance", "attendance_correction", "time_entry", "ot_request", "expense",
   "leave_request", "delay_event", "readiness_check", "schedule_day", "quality_case", "issue", "acceptance", "additional_work", "package_exception", "design_request",
-  "communication_log", "employee_skill", "site_restriction", "appliance_dependency", "quantity_snapshot", "substitution", "scan_event", "design_revision", "employee_skill_change", "employee_portrait"] as const;
+  "communication_log", "employee_skill", "site_restriction", "appliance_dependency", "quantity_snapshot", "substitution", "scan_event", "design_revision", "employee_skill_change", "employee_portrait", "stage_history", "mnd_report"] as const;
 export type ParentType = (typeof PARENT_TYPES)[number];
 
 /** Where each parent type's project lives, for project-scoped records. */
@@ -61,6 +62,20 @@ const ADMIN_ONLY: Partial<Record<ParentType, string>> = {
 
 /** Throws unless the actor may attach to (mode "link") or view (mode "read") evidence on this exact record. */
 export async function authorizeParent(q: Queryable, actor: Actor, type: ParentType, id: string, mode: "link" | "read") {
+  if (type === "stage_history") {
+    // Stage attachments are linked by the flow services themselves; reading follows the dispatch or complaint.
+    if (mode === "link") throw forbidden("Stage attachments are added with the stage itself.");
+    await requireStageFileView(q, actor, id);
+    return;
+  }
+  if (type === "mnd_report") {
+    // Report photos are linked by the report service; the reporter and whoever can see the dispatch may view them.
+    if (mode === "link") throw forbidden("Report photos are added with the report itself.");
+    const [r] = await q.query<{ reported_by: string; project_id: string }>("select reported_by, project_id from mnd_report where id = $1", [id]);
+    if (!r) throw notFound("Report");
+    if (r.reported_by !== actor.id) await requireFlowView(q, actor, r.project_id);
+    return;
+  }
   const adminSql = ADMIN_ONLY[type];
   if (adminSql) {
     if (actor.role !== "admin") throw forbidden("Employee skill cards and their attachments are for administrators only.");
@@ -98,9 +113,10 @@ export async function createEvidenceUpload(ctx: Ctx, input: unknown) {
     idempotencyKey: z.string().min(8).max(80), capturedAt: z.number().int().optional() }), input);
   const storage = evidenceStorage();
   if (storage.kind === "unconfigured") throw conflict("Photo and video storage is not configured on this server. Your entry still saves without attachments.");
-  const mediaType = d.mime.startsWith("image/") ? "image" : d.mime.startsWith("video/") ? "video" : null;
-  if (!mediaType) throw validation("Only photos and videos can be attached here.", [`${d.fileName}: unsupported type ${d.mime || "unknown"}`]);
-  const limit = mediaType === "image" ? EVIDENCE_LIMITS.imageBytes : EVIDENCE_LIMITS.videoBytes;
+  // PDFs only for dispatch-flow stages (tax invoice, e-way bill); everywhere else stays photo or video.
+  const mediaType = d.mime.startsWith("image/") ? "image" : d.mime.startsWith("video/") ? "video" : d.mime === "application/pdf" && d.context.startsWith("flow.") ? "document" : null;
+  if (!mediaType) throw validation(d.context.startsWith("flow.") ? "Attach a photo or a PDF here." : "Only photos and videos can be attached here.", [`${d.fileName}: unsupported type ${d.mime || "unknown"}`]);
+  const limit = mediaType === "video" ? EVIDENCE_LIMITS.videoBytes : EVIDENCE_LIMITS.imageBytes;
   if (d.size > limit) throw validation(`${d.fileName} is larger than the ${Math.round(limit / 1048576)} MB limit for ${mediaType}s.`);
   return ctx.db.tx(async (q) => {
     const [dup] = await q.query<{ id: string; asset_id: string; expires_at: number }>("select id, asset_id, expires_at from upload_session where actor_id = $1 and idempotency_key = $2", [ctx.actor.id, d.idempotencyKey]);
@@ -128,7 +144,7 @@ export async function receiveUpload(q: Queryable, actorId: string, sessionId: st
   const storage = evidenceStorage();
   if (a.state === "uploading" && a.storage_key !== key) await q.query("update evidence_asset set storage_key = $2 where id = $1", [s.asset_id, key]);
   await storage.remove(key);
-  const limit = a.media_type === "image" ? EVIDENCE_LIMITS.imageBytes : EVIDENCE_LIMITS.videoBytes;
+  const limit = a.media_type === "video" ? EVIDENCE_LIMITS.videoBytes : EVIDENCE_LIMITS.imageBytes;
   const bytes = await storage.write(key, body, limit);
   await q.query("update evidence_asset set state = 'validating', byte_size = $2, received_at = $3 where id = $1", [s.asset_id, bytes, iso(now)]);
   return { bytes };
@@ -149,7 +165,7 @@ export async function completeEvidenceUpload(ctx: Ctx, input: unknown) {
     await storage.remove(a.storage_key);
     throw validation(why);
   };
-  if (!found) return fail("This file is not a supported photo or video (JPEG, PNG, WebP, HEIC, MP4, MOV, WebM).");
+  if (!found) return fail(`This file is not a supported ${a.media_type === "document" ? "PDF" : "photo or video (JPEG, PNG, WebP, HEIC, MP4, MOV, WebM)"}.`);
   if (found.mediaType !== a.media_type) return fail(`The file contents are a ${found.mediaType}, not a ${a.media_type}.`);
   const hash = createHash("sha256");
   await new Promise<void>((res, rej) => storage.stream(a.storage_key).on("data", (c) => hash.update(c)).on("end", () => res()).on("error", rej));
@@ -192,7 +208,7 @@ export async function removeDraftEvidence(ctx: Ctx, input: unknown) {
   });
 }
 
-export interface EvidenceItem { id: string; mediaType: "image" | "video"; mime: string; name: string; caption: string | null; at: number; by: string }
+export interface EvidenceItem { id: string; mediaType: "image" | "video" | "document"; mime: string; name: string; caption: string | null; at: number; by: string }
 
 /** Evidence on one record, for reviewers and the author. Authorization is checked first. */
 export async function evidenceFor(q: Queryable, actor: Actor, type: ParentType, id: string): Promise<EvidenceItem[]> {
