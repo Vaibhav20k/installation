@@ -10,7 +10,7 @@ import { projectFilter } from "./common";
 export interface TeamMember { id: string; business_id: string; name: string; job_role: string; state: string; from: string; until: string }
 export interface InstallRow {
   visit_id: string; visit: string; exec_status: string; visit_type: string;
-  project_id: string; project: string; project_name: string; city: string; site_address: string;
+  project_id: string; project: string; project_name: string; city: string; site_address: string; timezone: string;
   customer: string; customer_name: string; manager: string | null;
   orders: Array<{ business_id: string; product: string }>;
   planned_start: string | null; planned_end: string | null;
@@ -23,7 +23,7 @@ export interface InstallRow {
 
 const ROW_SQL = (where: string) => `
   select v.id visit_id, v.business_id visit, v.exec_status, v.visit_type,
-    p.id project_id, p.business_id project, p.name project_name, p.city, p.site_address,
+    p.id project_id, p.business_id project, p.name project_name, p.city, p.site_address, p.timezone,
     c.business_id customer, c.name customer_name, m.name manager,
     coalesce((select json_agg(json_build_object('business_id', o.business_id, 'product', (select string_agg(oi.name, ', ') from order_item oi where oi.order_id = o.id)) order by o.business_id)
       from visit_order vo join sales_order o on o.id = vo.order_id where vo.visit_id = v.id), '[]') orders,
@@ -80,7 +80,9 @@ export async function teamCandidates(q: Queryable, visitId: string, now: number)
     `select coalesce(min(lower(r.span)), v.planned_start::timestamptz) lo, coalesce(max(upper(r.span)), (v.planned_end + 1)::timestamptz) hi
      from visit v left join reservation r on r.visit_id = v.id and r.state in ('proposed','held','confirmed') where v.id = $1 group by v.id`, [visitId]);
   if (!v) return [];
-  const from = new Date(Math.max(Number(v.lo), now)).toISOString(), to = new Date(Number(v.hi)).toISOString();
+  // A visit whose bookings have already ended (late handover) still needs people: check the next day from now.
+  const lo = Math.max(Number(v.lo), now), hi = Math.max(Number(v.hi), lo + 86_400_000);
+  const from = new Date(lo).toISOString(), to = new Date(hi).toISOString();
   return q.query<Candidate>(
     `select * from (select e.id, e.business_id, e.name, e.job_role,
        coalesce((select string_agg(s.code || ' ' || (array['L','M','H'])[es.level] || case when es.verified then '' else '?' end, ', ' order by s.code)
@@ -91,7 +93,7 @@ export async function teamCandidates(q: Queryable, visitId: string, now: number)
            then 'booked on ' || (select ov.business_id from reservation r join visit ov on ov.id = r.visit_id where r.employee_id = e.id and r.visit_id <> $1 and r.state in ('held','confirmed') and r.span && tstzrange($2::timestamptz,$3::timestamptz) limit 1)
          else null end busy
      from employee e
-     where e.active and e.permission_role in ('employee','supervisor')
+     where e.active and e.permission_role in ('employee','supervisor') and e.job_role <> 'department_staff'
        and not exists (select 1 from reservation r where r.visit_id = $1 and r.employee_id = e.id and r.state in ('proposed','held','confirmed') and upper(r.span) > $2::timestamptz)
      ) c order by c.busy is not null, c.job_role, c.business_id`, [visitId, from, to]);
 }

@@ -109,11 +109,14 @@ describe("team changes from the installation page (user request, 23 Oct)", () =>
   it("replacing someone before their booking starts hands over the whole booking", async () => {
     const v = await idOf(db, "visit", "VIS-005");
     const team = await db.query<{ employee_id: string; lo: number; hi: number }>("select employee_id, lower(span) lo, upper(span) hi from reservation where visit_id = $1 and state = 'confirmed' order by employee_id", [v]);
-    const [inc] = await free("VIS-005", "2026-10-20", "2026-10-25");
-    // The incoming person may lack a skill only one member holds; that replacement is refused (rolled back), so try the next.
-    let out: (typeof team)[number] | undefined, r: Awaited<ReturnType<typeof substitute>> | undefined;
-    for (const m of team) {
-      try { r = await substitute(await as("EMP-001"), { visitId: v, outgoingId: m.employee_id, incomingId: inc!, date: "2026-10-16", time: "09:00", reason: "Sick: cannot join this visit" }); out = m; break; }
+    const candidates = await free("VIS-005", "2026-10-20", "2026-10-25");
+    // A candidate may lack a skill only one member holds; that replacement is refused (rolled back), so try the next
+    // member, then the next free person.
+    let out: (typeof team)[number] | undefined, inc: string | undefined, r: Awaited<ReturnType<typeof substitute>> | undefined;
+    // Only people whose booking has not started by the change (16 Oct 09:00 IST) hand over a whole booking.
+    const notStarted = team.filter((m) => Number(m.lo) > Date.parse("2026-10-16T03:30:00Z"));
+    search: for (const c of candidates) for (const m of notStarted) {
+      try { r = await substitute(await as("EMP-001"), { visitId: v, outgoingId: m.employee_id, incomingId: c, date: "2026-10-16", time: "09:00", reason: "Sick: cannot join this visit" }); out = m; inc = c; break search; }
       catch (e) { if (!(e instanceof AppError && e.kind === "validation")) throw e; }
     }
     expect(r?.wholeBooking).toBe(true);

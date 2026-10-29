@@ -9,6 +9,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Empty, Notice } from "@/components/ui/Notice";
 import { ApplySchedule, CustomerCopy, DayControls } from "@/components/install/ScheduleControls";
 import { TeamManager } from "@/components/install/TeamManager";
+import { HandoverFlag } from "@/components/install/HandoverFlag";
+import { MidnightRefresh } from "@/components/install/MidnightRefresh";
+import { SiteWorkforce } from "@/components/install/SiteWorkforce";
+import { WorkPlanSection } from "@/components/install/WorkPlanSection";
+import { siteWorkforce, workPlan } from "@/server/queries/site-ops";
+import { handoverState } from "@/domain/handover";
 
 export const metadata = { title: "Installation progress" };
 
@@ -29,6 +35,9 @@ export default async function InstallationDetail({ params }: { params: Promise<{
   const editable = !["completed", "closed", "cancelled"].includes(r.exec_status);
   const canManage = (actor.role === "manager" || actor.role === "admin") && editable;
   const started = days.some((d) => d.status !== "planned");
+  const [workforce, plan] = await Promise.all([siteWorkforce(db, actor, r.visit_id, Date.now()), workPlan(db, actor, r.visit_id)]);
+  const siteToday = localDateOf(Date.now(), r.timezone);
+  const team = r.team.filter((m) => Date.parse(m.until) > Date.now()).map((m) => ({ id: m.id, name: m.name }));
   const outside = !!(r.schedule_end && r.planned_end && r.schedule_end > r.planned_end) || !!(r.schedule_start && r.planned_start && r.schedule_start < r.planned_start);
   return (
     <>
@@ -38,6 +47,8 @@ export default async function InstallationDetail({ params }: { params: Promise<{
           <span className="code-tag"><span className="nw">{r.customer}</span> · <span className="nw">{r.project}</span> · <span className="nw">{r.visit}</span></span>
           {r.behind_days > 0 ? <Badge state="fail" tone="bad" label={`Behind ${r.behind_days} day${r.behind_days > 1 ? "s" : ""}`} className="stamp-hero stamp-press" /> : <Badge state={r.exec_status} className="stamp-hero stamp-press" />}
         </div>
+        <MidnightRefresh tz={r.timezone} />
+        <HandoverFlag state={handoverState(r, Date.now())} />
         <h1 id="h-site" className="plate-title">{customerName}</h1>
         <p className="plate-sub" style={{ display: "flex", gap: 6, alignItems: "center" }}><MapPin size={16} aria-hidden /> {r.project_name}, {r.site_address}</p>
         <div className="progress-hero">
@@ -80,6 +91,16 @@ export default async function InstallationDetail({ params }: { params: Promise<{
           )}
         </section>
       </div>
+
+      <section className="plate" aria-labelledby="h-wf">
+        <div className="plate-head"><h2 id="h-wf" style={{ margin: 0 }}>Site workforce</h2><span className="code-tag">planned and recorded</span></div>
+        <SiteWorkforce data={workforce} visitId={r.visit_id} canCorrect actorId={actor.id} />
+      </section>
+
+      <section className="plate" aria-labelledby="h-plan">
+        <div className="plate-head"><h2 id="h-plan" style={{ margin: 0 }}>Work plan</h2><span className="code-tag">{plan.tasks.filter((t) => t.status === "open").length} tasks</span></div>
+        <WorkPlanSection visitId={r.visit_id} plan={plan} team={team} today={siteToday} canManage={canManage} />
+      </section>
 
       <section className="plate" aria-labelledby="h-sched">
         <div className="plate-head"><h2 id="h-sched" style={{ margin: 0 }}>Customer schedule</h2><span className="code-tag">{r.template ?? "not laid out"}</span></div>

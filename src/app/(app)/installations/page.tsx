@@ -1,12 +1,18 @@
 import Link from "next/link";
-import { CaretRight, MagnifyingGlass, Users } from "@phosphor-icons/react/dist/ssr";
+import { CalendarBlank, CaretRight, ListBullets, MagnifyingGlass, MapTrifold, Users } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { installationsBoard, type InstallRow } from "@/server/queries/installations";
-import { addDays, dayDiff, localDateOf } from "@/lib/dates";
+import { dayDiff, localDateOf } from "@/lib/dates";
 import { TZ } from "@/lib/format";
 import { shortDate } from "@/domain/install-schedule";
 import { Badge } from "@/components/ui/Badge";
 import { Empty, Notice, PageHeader } from "@/components/ui/Notice";
+import { installCalendar } from "@/server/queries/install-calendar";
+import { handoverState } from "@/domain/handover";
+import { HandoverFlag } from "@/components/install/HandoverFlag";
+import { InstallCalendar, SiteMap, monthLabel } from "@/components/install/InstallOverview";
+import { MidnightRefresh } from "@/components/install/MidnightRefresh";
+import { DueCalendar, type DueItem } from "@/components/install/DueCalendar";
 
 export const metadata = { title: "Installations" };
 
@@ -15,25 +21,27 @@ export default async function InstallationsPage({ searchParams }: { searchParams
   const { db, actor } = await session();
   if (actor.role === "employee") return <Notice tone="warn" title="Not permitted">The installations board is for supervisors, managers and administrators. Your work is on My day.</Notice>;
   const today = localDateOf(Date.now(), TZ);
+  const view = sp.view === "calendar" || sp.view === "map" ? sp.view : "list";
+  if (view !== "list") return <Overview view={view} sp={sp} today={today} />;
   const all = await installationsBoard(db, actor, today);
   const q = (sp.q ?? "").trim().toLowerCase();
   const rows = q ? all.filter((r) => [r.customer, r.customer_name, r.project, r.project_name, r.visit, ...r.orders.map((o) => o.business_id)].some((s) => s.toLowerCase().includes(q))) : all;
   const onSite = rows.filter((r) => r.exec_status === "in_progress" || r.exec_status === "on_hold");
   const upcoming = rows.filter((r) => !onSite.includes(r));
-  // Handover window: an adjustable report filter; "next 7 days" is only the starting preset, not a deadline.
-  const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
-  const hFrom = isDate(sp.hfrom) ? sp.hfrom! : today;
-  const hTo = isDate(sp.hto) && sp.hto! >= hFrom ? sp.hto! : addDays(hFrom, Number(sp.hdays) > 0 && Number(sp.hdays) <= 366 ? Number(sp.hdays) : 7);
-  const handovers = all.filter((r) => { const end = r.schedule_end ?? r.planned_end; return !!end && end >= hFrom && end <= hTo; });
-  const figures = [
-    { label: "On site now", value: all.filter((r) => r.exec_status === "in_progress").length, tone: undefined },
-    { label: "Behind the customer schedule", value: all.filter((r) => r.behind_days > 0).length, tone: all.some((r) => r.behind_days > 0) ? "bad" : undefined },
-    { label: `Handovers ${shortDate(hFrom)} to ${shortDate(hTo)}`, value: handovers.length, tone: undefined },
-    { label: "Crew on site today", value: new Set(all.filter((r) => r.exec_status === "in_progress" && r.today_kind !== "off").flatMap((r) => r.team.filter((m) => m.state === "confirmed").map((m) => m.id))).size, tone: undefined },
-  ];
+  // Calendar beside the list: every open installation with a handover date, on that date; late ones flagged.
+  const due: DueItem[] = all.flatMap((r) => {
+    const h = handoverState(r, Date.now());
+    if (h.kind !== "due" && h.kind !== "overdue") return [];
+    return [{ visit_id: r.visit_id, due: h.due, late: h.kind === "overdue", days_late: h.kind === "overdue" ? h.days : 0,
+      customer: r.customer, name: r.customer_name.replace(/^Demo Customer /, ""), project: r.project_name, visit: r.visit, status: r.exec_status }];
+  });
   return (
     <>
       <PageHeader title="Installations" subtitle="Every open site: the customer, how long the plan runs, who is on it and how far along it is. Tap a site for its day-by-day progress." />
+      <MidnightRefresh tz={TZ} />
+      <ViewSwitch view="list" />
+      <div className="plans-layout">
+      <div className="plans-main">
       <form className="search-bar" role="search" aria-label="Find an installation">
         <MagnifyingGlass size={18} aria-hidden />
         <label htmlFor="iq" className="sr-only">Customer, project or order</label>
@@ -41,33 +49,53 @@ export default async function InstallationsPage({ searchParams }: { searchParams
         {q && <Link href="/installations" className="small">Clear</Link>}
       </form>
 
-      {!q && (
-        <section className="plate" aria-labelledby="h-fig">
-          <div className="plate-head"><h2 id="h-fig" style={{ margin: 0 }}>Today, {shortDate(today)}</h2><span className="code-tag">{all.length} open</span></div>
-          <ul className="spec">
-            {figures.map((f) => (
-              <li key={f.label}><div className="spec-row" style={{ gridTemplateColumns: "1fr auto" }}><span className="spec-label">{f.label}</span><span className="spec-value" data-tone={f.tone}>{f.value}</span></div></li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {!q && (
-        <form className="handover-range" aria-label="Handover window">
-          <span className="small muted">Handover window:</span>
-          {[7, 14, 30].map((n) => <a key={n} className="button" href={`/installations?hdays=${n}`} aria-current={!sp.hfrom && !sp.hto && (Number(sp.hdays) || 7) === n ? "true" : undefined}>Next {n} days</a>)}
-          <label className="sr-only" htmlFor="hf">From</label><input id="hf" type="date" name="hfrom" defaultValue={hFrom} />
-          <label className="sr-only" htmlFor="ht">To</label><input id="ht" type="date" name="hto" defaultValue={hTo} />
-          <button type="submit">Apply</button>
-          {handovers.length > 0 && <span className="small">{handovers.map((h) => `${h.customer} ${h.project}`).join(", ")}</span>}
-        </form>
-      )}
-
       <Section title="On site" rows={onSite} today={today} empty={q ? "No site matches that search." : "Nobody is on site right now."} />
       <Section title="Coming up" rows={upcoming} today={today} empty={q ? "No upcoming visit matches that search." : "No visits are planned yet."} />
+      </div>
+      <aside className="plans-aside" aria-label="Handover calendar"><DueCalendar items={due} today={today} /></aside>
+      </div>
     </>
   );
 }
+
+function ViewSwitch({ view, month }: { view: string; month?: string }) {
+  const m = month ? `&month=${month}` : "";
+  return (
+    <nav className="view-switch" aria-label="Installation views">
+      <Link href="/installations" aria-current={view === "list" ? "true" : undefined}><ListBullets size={16} aria-hidden /> List</Link>
+      <Link href={`/installations?view=calendar${m}`} aria-current={view === "calendar" ? "true" : undefined}><CalendarBlank size={16} aria-hidden /> Calendar</Link>
+      <Link href={`/installations?view=map${m}`} aria-current={view === "map" ? "true" : undefined}><MapTrifold size={16} aria-hidden /> Map</Link>
+    </nav>
+  );
+}
+
+/** Calendar and map share one scoped month query, so a date's count and the map's list are the same records. */
+async function Overview({ view, sp, today }: { view: "calendar" | "map"; sp: Record<string, string | undefined>; today: string }) {
+  const { db, actor } = await session();
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month ?? "") ? sp.month! : today.slice(0, 7);
+  const selected = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") && sp.date!.startsWith(month) ? sp.date! : month === today.slice(0, 7) ? today : null;
+  const cal = await installCalendar(db, actor, month, Date.now());
+  const overdue = cal.visits.filter((v) => v.handover.kind === "overdue").length;
+  const href = (p: Record<string, string>) => `/installations?${new URLSearchParams({ view, ...p }).toString()}`;
+  return (
+    <>
+      <PageHeader title="Installations" subtitle="Scheduled installations by date, and the sites they are at. Select a date or a site for its details." />
+      <MidnightRefresh tz={TZ} />
+      <div className="overview-bar">
+        <ViewSwitch view={view} month={month} />
+        <span className="range-note">Showing {monthLabel(month)} ({shortDate(cal.first)} to {shortDate(cal.last)}) · {cal.visits.length} installation visit{cal.visits.length === 1 ? "" : "s"}{overdue ? ` · ${overdue} overdue handover${overdue === 1 ? "" : "s"}` : ""}</span>
+      </div>
+      {view === "calendar" ? <InstallCalendar month={month} today={today} selected={selected} byDate={cal.byDate} href={href} /> : (
+        <>
+          <nav className="cal-nav" aria-label="Month"><Link href={href({ month: monthShift(month, -1) })}>Previous month</Link><Link href={href({ month: monthShift(month, 1) })}>Next month</Link></nav>
+          <SiteMap month={month} visits={cal.visits} canEdit={actor.role === "manager" || actor.role === "admin"} />
+        </>
+      )}
+    </>
+  );
+}
+
+const monthShift = (m: string, n: number) => { const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
 
 function Section({ title, rows, today, empty }: { title: string; rows: InstallRow[]; today: string; empty: string }) {
   return (
@@ -90,6 +118,7 @@ function SiteCard({ r, today }: { r: InstallRow; today: string }) {
         <span className="code-tag"><span className="nw">{r.customer}</span> · <span className="nw">{r.project}</span> · <span className="nw">{r.visit}</span></span>
         {r.behind_days > 0 ? <Badge state="fail" tone="bad" label={`Behind ${r.behind_days} day${r.behind_days > 1 ? "s" : ""}`} /> : <Badge state={r.exec_status} />}
       </div>
+      <HandoverFlag state={handoverState(r, Date.now())} compact />
       <h3 className="plate-title">{r.customer_name.replace(/^Demo Customer /, "")}</h3>
       <p className="plate-sub">{r.project_name} · {r.orders.map((o) => `${o.business_id} ${o.product}`).join(", ") || "No order linked"}</p>
       <dl className="site-facts">

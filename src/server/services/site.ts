@@ -192,3 +192,24 @@ export async function addCrewMember(ctx: Ctx, input: unknown) {
     return { id: r!.id, state, teamSize: Math.max(v.team_size, size) };
   });
 }
+
+/**
+ * Pin a site on the installations map. Managers and above, for projects in their scope; the coordinates come from
+ * the person (a click on the map, pasted coordinates or a map link), never from guessing the address. Null clears it.
+ */
+export async function setSiteLocation(ctx: Ctx, input: unknown) {
+  const d = parse(z.object({
+    projectId: zId,
+    location: z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).nullable(),
+  }), input);
+  requireRole(ctx.actor, "manager", "setting a site location");
+  return ctx.db.tx(async (q) => {
+    await requireProjectScope(q, ctx.actor, d.projectId);
+    const before = await one<{ latitude: number | null; longitude: number | null }>(q, "select latitude::float, longitude::float from project where id = $1 for update", [d.projectId], "Project");
+    const lat = d.location ? Math.round(d.location.latitude * 1e6) / 1e6 : null, lng = d.location ? Math.round(d.location.longitude * 1e6) / 1e6 : null;
+    await q.query("update project set latitude = $2, longitude = $3, location_set_at = case when $2::numeric is null then null else now() end, location_set_by = case when $2::numeric is null then null else $4::uuid end, updated_at = now() where id = $1",
+      [d.projectId, lat, lng, ctx.actor.id]);
+    await audit(q, { actorId: ctx.actor.id, action: "set_site_location", objectType: "project", objectId: d.projectId, before, after: { latitude: lat, longitude: lng }, correlationId: ctx.correlationId });
+    return { latitude: lat, longitude: lng };
+  });
+}
