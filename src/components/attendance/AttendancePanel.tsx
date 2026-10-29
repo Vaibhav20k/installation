@@ -37,6 +37,8 @@ const OT_REASONS: Array<[string, string]> = [["catch_up", "Finishing today's ori
 const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
 const hms = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${pad(s / 3600)}:${pad((s % 3600) / 60)}:${pad(s % 60)}`; };
 const hm = (min: number) => `${Math.floor(min / 60)}h ${pad(min % 60)}m`;
+/** A shift never runs past 24 hours; the server closes it then (owner's rule, 28 Oct 2026). */
+const MAX_SHIFT_MS = 24 * 3600_000;
 
 function useClock(tz: string) {
   return useMemo(() => new Intl.DateTimeFormat("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }), [tz]);
@@ -51,7 +53,7 @@ function Ticker({ shift, offset }: { shift: PanelShift; offset: number }) {
     return () => clearInterval(t);
   }, [shift.open, offset]);
   const end = shift.open ? now : (shift.lastClockOut ?? now);
-  const elapsed = Math.max(0, end - shift.t0);
+  const elapsed = Math.min(MAX_SHIFT_MS, Math.max(0, end - shift.t0));
   const regular = Math.min(elapsed, 8 * 3600_000);
   const ot = Math.max(0, elapsed - 8 * 3600_000);
   const pct = Math.min(100, (regular / (8 * 3600_000)) * 100);
@@ -93,17 +95,17 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
   const [clockErr, setClockErr] = useState<string | null>(null);
   const [clockedIn, setClockedIn] = useState(false);
 
-  // One refresh at each boundary so the server-recorded reminder / overtime state appears without a reload.
+  // One refresh at each boundary so the server-recorded reminder / overtime / 24-hour close appears without a reload.
   const refreshed = useRef(new Set<number>());
   useEffect(() => {
     if (!shift?.open) return;
-    const timers = [shift.warnAt, shift.otAt].map((b) => {
+    const timers = [shift.warnAt, shift.otAt, shift.t0 + MAX_SHIFT_MS].map((b) => {
       const wait = b - (Date.now() + offset) + 1500;
       if (wait <= 0 || refreshed.current.has(b)) return null;
       return setTimeout(() => { refreshed.current.add(b); router.refresh(); }, Math.min(wait, 2 ** 31 - 1));
     });
     return () => timers.forEach((t) => t && clearTimeout(t));
-  }, [shift?.open, shift?.warnAt, shift?.otAt, offset, router]);
+  }, [shift?.open, shift?.warnAt, shift?.otAt, shift?.t0, offset, router]);
 
   const stamp = !shift ? "Not clocked in" : shift.state === "regular" ? "Regular" : shift.state === "overtime" ? "Overtime" : "Clocked out";
   return (

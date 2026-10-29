@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellRinging, X } from "@phosphor-icons/react";
 import { markNotificationsRead } from "@/app/actions";
 
-interface Item { id: string; kind: string; title: string; body: string; effective_at: number; overdue: boolean; read_at: number | null }
+interface Item { id: string; kind: string; title: string; body: string; effective_at: number; overdue: boolean; read_at: number | null; href?: string | null }
 interface Data { items: Item[]; unread: number; nextDueAt: number | null; serverNow: number }
 
 const fmt = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -69,7 +69,7 @@ export function NotificationBell() {
             <ul>
               {data.items.map((i) => (
                 <li key={i.id} data-unread={!i.read_at || undefined}>
-                  <span className="bell-title">{i.title}{i.overdue ? " · late" : ""}</span>
+                  <span className="bell-title">{i.href?.startsWith("/") && !i.href.startsWith("//") ? <a href={i.href}>{i.title}</a> : i.title}{i.overdue ? " · late" : ""}</span>
                   <span className="small">{i.body}</span>
                   <span className="small muted code">{fmt.format(Number(i.effective_at))}</span>
                 </li>

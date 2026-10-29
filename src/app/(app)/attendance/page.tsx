@@ -5,6 +5,8 @@ import { shortDate } from "@/domain/install-schedule";
 import { Badge } from "@/components/ui/Badge";
 import { Empty, PageHeader } from "@/components/ui/Notice";
 import { CorrectionForm } from "@/components/attendance/AttendancePanel";
+import { AutoClosedNotice } from "@/components/attendance/AutoClosedNotice";
+import { autoClosedMessage } from "@/server/services/attendance";
 
 export const metadata = { title: "My attendance" };
 
@@ -19,11 +21,13 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const now = Date.now();
   const rows = await attendanceHistory(db, employeeId, now);
   const own = employeeId === actor.id;
-  const total = rows.reduce((t, r) => ({ reg: t.reg + r.summary.regularWorkMinutes, ot: t.ot + r.summary.recordedOvertimeWorkMinutes, ok: t.ok + r.approvedOtMinutes, pend: t.pend + r.pendingOtMinutes, no: t.no + r.ineligibleOtMinutes }), { reg: 0, ot: 0, ok: 0, pend: 0, no: 0 });
+  // A missed clock-out is provisional (capped at 24 h, never paid as-is): it counts only once its real time is approved.
+  const total = rows.filter((r) => !r.missed).reduce((t, r) => ({ reg: t.reg + r.summary.regularWorkMinutes, ot: t.ot + r.summary.recordedOvertimeWorkMinutes, ok: t.ok + r.approvedOtMinutes, pend: t.pend + r.pendingOtMinutes, no: t.no + r.ineligibleOtMinutes }), { reg: 0, ot: 0, ok: 0, pend: 0, no: 0 });
   const fmt = (tz: string) => new Intl.DateTimeFormat("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   return (
     <div className="stack" style={{ gap: 16, maxWidth: 820, width: "100%" }}>
       <PageHeader title={own ? "My attendance" : `Attendance · ${who?.name ?? ""}`} subtitle="Each day: clock-in and out, regular work inside the fixed 8-hour session, work recorded after it, and what review decided. Recorded overtime is not approved overtime." />
+      {own && <AutoClosedNotice linkToForm={false} items={rows.filter((r) => r.missed && r.autoClosed).map((r) => ({ shiftId: r.id, text: `${autoClosedMessage(r.work_date)} Use "Add the missing clock-out time" on that day below.` }))} />}
       <section className="plate" aria-labelledby="h-tot">
         <div className="plate-head"><h2 id="h-tot" style={{ margin: 0 }}>{rows.length === 1 ? "Last shift" : `Last ${rows.length} shifts`}</h2><span className="code-tag">{who?.business_id}</span></div>
         <ul className="spec">
@@ -37,12 +41,12 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       {rows.length === 0 ? <Empty>No shifts yet. Clock in from My day to start one.</Empty> : (
         <ul className="att-list">
           {rows.map((r) => (
-            <li key={r.id} className="plate att-row" data-missed={r.missed || undefined}>
+            <li key={r.id} id={`shift-${r.id}`} className="plate att-row" data-missed={r.missed || undefined}>
               <div className="att-head">
                 <span className="code att-date">{shortDate(r.work_date)}</span>
-                {r.missed ? <Badge state="fail" tone="bad" label="Clock-out missing" /> : r.summary.open ? <Badge state="in_progress" label={r.summary.state === "overtime" ? "Overtime" : "Regular"} /> : <Badge state="completed" label="Closed" />}
+                {r.missed ? <Badge state="fail" tone="bad" label={r.autoClosed ? "Closed after 24 h" : "Clock-out missing"} /> : r.summary.open ? <Badge state="in_progress" label={r.summary.state === "overtime" ? "Overtime" : "Regular"} /> : <Badge state="completed" label="Closed" />}
               </div>
-              <div className="att-times code">{fmt(r.timezone).format(r.t0)} → {r.missed ? "?" : r.summary.lastClockOut && !r.summary.open ? fmt(r.timezone).format(r.summary.lastClockOut) : "open"}</div>
+              <div className="att-times code">{fmt(r.timezone).format(r.t0)} → {r.missed ? (r.autoClosed ? "Not clocked out" : "?") : r.summary.lastClockOut && !r.summary.open ? fmt(r.timezone).format(r.summary.lastClockOut) : "open"}</div>
               <dl className="att-figs">
                 <div><dt>Regular work</dt><dd className="code">{r.missed ? "provisional" : hm(r.summary.regularWorkMinutes)}</dd></div>
                 <div><dt>After 8 h</dt><dd className="code">{r.missed ? "provisional" : hm(r.summary.recordedOvertimeWorkMinutes)}</dd></div>

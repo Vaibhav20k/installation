@@ -9,7 +9,7 @@ import { audit } from "../audit";
 import { forbidSelfApproval, requireEmployeeScope, requireRole } from "../auth/permissions";
 import { conflict, forbidden, validation } from "../errors";
 import { localDateOf, zonedToUtc } from "@/lib/dates";
-import { SHIFT_MESSAGES, draftRows, overtimeAt, summarize, warnAt, type Activity, type ShiftEvent } from "@/domain/shift";
+import { SHIFT_MESSAGES, draftRows, overtimeAt, summarize, warnAt, type Activity, type ShiftEvent, type ShiftSummary } from "@/domain/shift";
 import { durationMinutes, intersect } from "@/domain/intervals";
 import { employeeCalendar } from "./time";
 import { iso, one, parse, zDate, zId, zTime, type Ctx } from "./context";
@@ -17,8 +17,28 @@ import { iso, one, parse, zDate, zId, zTime, type Ctx } from "./context";
 export interface ShiftRow {
   id: string; employee_id: string; work_date: string; timezone: string; t0: number; warn_at: number; ot_at: number; revision: number;
   visit_id: string | null; missed_clock_out: boolean; clock_out_override: number | null; ot_reason: string | null; ot_reason_note: string | null; version: number;
+  auto_closed: boolean; auto_closed_at: number | null;
 }
-const SHIFT_SELECT = `select id, employee_id, work_date::text, timezone, t0, warn_at, ot_at, revision, visit_id, missed_clock_out, clock_out_override, ot_reason, ot_reason_note, version from shift_instance`;
+export const SHIFT_SELECT = `select id, employee_id, work_date::text, timezone, t0, warn_at, ot_at, revision, visit_id, missed_clock_out, clock_out_override, ot_reason, ot_reason_note, version, auto_closed, auto_closed_at from shift_instance`;
+
+/**
+ * Owner's rule (28 Oct 2026): an open shift never counts more than 24 hours from its anchor t0. A shift still open
+ * then is closed automatically as a missed clock-out: no clock-out time is invented, no timesheet rows are made, and it
+ * waits in the manager's queue until a real clock-out time is approved. Hours shown for it stop at the 24-hour mark.
+ */
+export const MAX_SHIFT_MINUTES = 24 * 60;
+export const shiftCapAt = (s: Pick<ShiftRow, "t0">) => Number(s.t0) + MAX_SHIFT_MINUTES * 60_000;
+const AUTO_CLOSED_MESSAGE = "This shift was closed automatically after 24 hours without a clock-out. Ask your manager to correct the time.";
+const longDate = (d: string) => new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(Date.parse(`${d}T00:00:00Z`));
+
+/** Summary for display: never past 24 hours; a missed (or auto-closed) shift is no longer running. */
+export function summarizeShift(s: Pick<ShiftRow, "t0" | "missed_clock_out" | "clock_out_override">, events: ShiftEvent[], now: number): ShiftSummary {
+  const t0 = Number(s.t0);
+  let sum = summarize(t0, events, now);
+  if (now > shiftCapAt(s) && sum.open) sum = summarize(t0, events, shiftCapAt(s));
+  if (s.missed_clock_out && s.clock_out_override === null) return { ...sum, open: false, activity: null, state: "clocked_out" };
+  return sum;
+}
 
 export async function shiftEvents(q: Queryable, shift: Pick<ShiftRow, "id" | "clock_out_override">): Promise<ShiftEvent[]> {
   const rows = await q.query<{ kind: ShiftEvent["kind"]; activity: Activity | null; at: number }>(
@@ -37,7 +57,9 @@ async function openShift(q: Queryable, employeeId: string, now: number) {
   const recent = await q.query<ShiftRow>(`${SHIFT_SELECT} where employee_id = $1 order by work_date desc limit 3`, [employeeId]);
   for (const s of recent) {
     if (s.missed_clock_out) continue;
-    if (summarize(Number(s.t0), await shiftEvents(q, s), now).open) return s;
+    if (!summarize(Number(s.t0), await shiftEvents(q, s), now).open) continue;
+    if (now >= shiftCapAt(s)) { await autoCloseShift(q, s.id, now); continue; }
+    return s;
   }
   return null;
 }
@@ -121,6 +143,7 @@ export async function setActivity(ctx: Ctx, input: unknown) {
     if (s.employee_id !== ctx.actor.id) throw forbidden("You can change only your own activity.");
     const sum = summarize(Number(s.t0), await shiftEvents(q, s), ctx.now);
     if (!sum.open) throw conflict("Clock in first.");
+    if (s.missed_clock_out || ctx.now >= shiftCapAt(s)) throw conflict(AUTO_CLOSED_MESSAGE);
     if (sum.activity === d.activity) return { activity: d.activity };
     if (d.activity === "idle" && !d.note?.trim()) throw validation("Say what is holding the work up (power, access, material…).", ["note: required"]);
     const [ev] = await q.query<{ id: string }>("insert into attendance_event(shift_id, kind, activity, effective_at, actor_id, note, shift_revision) values ($1,'activity',$2,$3,$4,$5,$6) returning id",
@@ -160,6 +183,7 @@ export async function clockOut(ctx: Ctx, input: unknown) {
     await processShiftJobs(q, s, ctx.now - 1);
     const events = await shiftEvents(q, s);
     if (!summarize(Number(s.t0), events, ctx.now).open) throw conflict("You are already clocked out.");
+    if (s.missed_clock_out || ctx.now >= shiftCapAt(s)) throw conflict(AUTO_CLOSED_MESSAGE);
     await q.query("insert into attendance_event(shift_id, kind, effective_at, actor_id, shift_revision) values ($1,'clock_out',$2,$3,$4)", [s.id, iso(ctx.now), ctx.actor.id, s.revision]);
     await q.query("update due_job set status = 'cancelled' where shift_id = $1 and status = 'pending'", [s.id]);
     const sheet = await draftTimesheet(q, ctx, s, ctx.now);
@@ -233,6 +257,7 @@ export async function requestCorrection(ctx: Ctx, input: unknown) {
     if (s.employee_id !== ctx.actor.id) throw forbidden("Request corrections for your own attendance.");
     const at = zonedToUtc(d.date, d.time, s.timezone);
     if (at > ctx.now) throw validation("A corrected time cannot be in the future.");
+    if (d.field === "clock_out" && at > shiftCapAt(s)) throw validation("A shift cannot be longer than 24 hours. Check the date and time.", ["time: within 24 hours of clock-in"]);
     const [pending] = await q.query("select 1 from attendance_correction where shift_id = $1 and field = $2 and status = 'requested'", [s.id, d.field]);
     if (pending) throw conflict("A correction for this is already waiting for review.");
     const [c] = await q.query<{ id: string }>("insert into attendance_correction(shift_id, employee_id, field, requested_at, reason) values ($1,$2,$3,$4,$5) returning id",
@@ -263,6 +288,7 @@ export async function decideCorrection(ctx: Ctx, input: unknown) {
         if (open) await scheduleJobs(q, { id: s.id, revision: rev, warn_at: warnAt(at), ot_at: overtimeAt(at) });
       } else {
         if (at <= Number(s.t0)) throw validation("Clock-out must be after clock-in.");
+        if (at > shiftCapAt(s)) throw validation("A shift cannot be longer than 24 hours.");
         await q.query("update shift_instance set clock_out_override = $2, missed_clock_out = false, revision = $3, version = version + 1 where id = $1", [s.id, iso(at), rev]);
         await q.query("update due_job set status = 'cancelled' where shift_id = $1 and status = 'pending'", [s.id]);
       }
@@ -278,9 +304,42 @@ export async function decideCorrection(ctx: Ctx, input: unknown) {
 
 // ---------- Durable due jobs ----------
 
-async function notify(q: Queryable, n: { employeeId: string; shiftId: string; kind: string; title: string; body: string; dedupe: string; effectiveAt: number; overdue?: boolean }) {
-  await q.query(`insert into notification(employee_id, shift_id, kind, title, body, dedupe_key, effective_at, overdue) values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (dedupe_key) do nothing`,
-    [n.employeeId, n.shiftId, n.kind, n.title, n.body, n.dedupe, iso(n.effectiveAt), n.overdue ?? false]);
+async function notify(q: Queryable, n: { employeeId: string; shiftId: string; kind: string; title: string; body: string; dedupe: string; effectiveAt: number; overdue?: boolean; href?: string }) {
+  await q.query(`insert into notification(employee_id, shift_id, kind, title, body, dedupe_key, effective_at, overdue, href) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (dedupe_key) do nothing`,
+    [n.employeeId, n.shiftId, n.kind, n.title, n.body, n.dedupe, iso(n.effectiveAt), n.overdue ?? false, n.href ?? null]);
+}
+
+/** The worker-facing warning for a shift closed after 24 hours (in-app only). */
+export const autoClosedMessage = (workDate: string) =>
+  `You didn't clock out on ${longDate(workDate)}. We closed that shift automatically after 24 hours. Ask your manager to correct the time.`;
+
+/**
+ * Close one shift that is still open 24 hours after t0. Runs inside the caller's transaction under the shift row
+ * lock and re-checks everything, so repeats, two tabs and the runner racing a read close it (and warn) once.
+ */
+async function autoCloseShift(q: Queryable, shiftId: string, now: number) {
+  const s = await lockShift(q, shiftId);
+  if (s.missed_clock_out || s.clock_out_override !== null || now < shiftCapAt(s)) return false;
+  if (!summarize(Number(s.t0), await shiftEvents(q, s), now).open) return false;
+  await processShiftJobs(q, s, now); // settle the 7:30 / 8:00 boundaries first, effective at their own times
+  await q.query("update shift_instance set missed_clock_out = true, auto_closed = true, auto_closed_at = $2, version = version + 1 where id = $1", [s.id, iso(now)]);
+  await q.query("update due_job set status = 'cancelled' where shift_id = $1 and status = 'pending'", [s.id]);
+  await notify(q, { employeeId: s.employee_id, shiftId: s.id, kind: "shift_auto_closed", title: "You didn't clock out", body: autoClosedMessage(s.work_date),
+    dedupe: `${s.id}:shift_auto_closed`, effectiveAt: shiftCapAt(s), href: `/attendance#shift-${s.id}` });
+  await audit(q, { actorId: null, action: "shift_auto_closed", objectType: "shift_instance", objectId: s.id, after: { autoClosedAt: now, capAt: shiftCapAt(s) } });
+  return true;
+}
+
+/** Close every shift (or one employee's) still open past 24 hours. Used by the runner and every attendance read. */
+export async function autoCloseStaleShifts(db: Db, now: number, employeeId?: string) {
+  const cutoff = iso(now - MAX_SHIFT_MINUTES * 60_000);
+  const stale = await db.query<{ id: string }>(
+    `select s.id from shift_instance s where not s.missed_clock_out and s.clock_out_override is null and s.t0 <= $1 ${employeeId ? "and s.employee_id = $2" : ""}
+       and coalesce((select e.kind from attendance_event e where e.shift_id = s.id and e.kind in ('clock_in','resume','clock_out') order by e.effective_at desc, e.recorded_at desc limit 1), 'clock_out') <> 'clock_out'
+     limit 200`, employeeId ? [cutoff, employeeId] : [cutoff]);
+  let n = 0;
+  for (const { id } of stale) if (await db.tx((q) => autoCloseShift(q, id, now))) n++;
+  return n;
 }
 
 /** Process this shift's due jobs. Idempotent: unique keys make repeats, restarts and multiple tabs harmless. */
@@ -316,7 +375,7 @@ export async function processDueJobs(db: Db, now: number, employeeId?: string) {
     employeeId ? [iso(now), employeeId] : [iso(now)]);
   let n = 0;
   for (const { shift_id } of due) n += await db.tx(async (q) => processShiftJobs(q, await lockShift(q, shift_id), now));
-  return n;
+  return n + await autoCloseStaleShifts(db, now, employeeId);
 }
 
 // ---------- Leave and emergency unavailability ----------
