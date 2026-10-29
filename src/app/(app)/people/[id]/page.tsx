@@ -5,7 +5,7 @@ import { AppError } from "@/server/errors";
 import { hours, LEVEL, when } from "@/lib/format";
 import { Badge, DemoTag } from "@/components/ui/Badge";
 import { Notice, PageHeader } from "@/components/ui/Notice";
-import { SkillForms } from "@/components/people/SkillForms";
+import { SkillCorrect, SkillForms } from "@/components/people/SkillForms";
 import { EmployeeAdmin } from "@/components/people/EmployeeAdmin";
 
 export const metadata = { title: "Employee" };
@@ -22,23 +22,27 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const e = d.employee;
   const skills = await skillsCatalog(db);
   const canVerify = actor.capabilities.includes("skill_verify") && actor.id !== id;
+  // Skills waiting for this viewer's check come first.
+  const skillRows = canVerify ? [...d.skills.filter((s) => !s.verified), ...d.skills.filter((s) => s.verified)] : d.skills;
+  const unverified = canVerify ? d.skills.filter((s) => !s.verified).length : 0;
   return (
-    <>
+    <div className="inbox-page">
       <PageHeader title={`${e.name} (${e.business_id})`} subtitle={<>{e.job_role.replace(/_/g, " ")} · permission {e.permission_role} · {e.base_city} · reports to {e.manager ?? "None"} {e.is_demo && <DemoTag />} {!e.active && <Badge state="cancelled" label="Inactive" />}</>}
         actions={<Link className="button" href={`/timesheets?employee=${id}`}>Timesheet</Link>} />
       <div className="grid cols-2">
         <section className="card stack" aria-labelledby="h-sk">
-          <h2 id="h-sk">Skill card</h2>
-          <div className="table-wrap"><table>
-            <thead><tr><th>Skill</th><th>Level</th><th>Verification</th><th>Valid</th></tr></thead>
-            <tbody>{d.skills.map((s) => (
-              <tr key={s.id}><td>{s.name}</td><td>{LEVEL[s.level]}</td>
-                <td>{s.verified ? <Badge state="approved" label={`Verified by ${s.verified_by}`} /> : <Badge state="pending" label="Unverified" />}{s.verified && <div className="small muted">{when(s.verified_at)}</div>}</td>
-                <td className="small">{s.valid_from ?? "None"} → {s.valid_to ?? "open"}</td></tr>
-            ))}</tbody>
+          <div className="inbox-head"><h2 id="h-sk">Skill card</h2>{unverified > 0 && <Badge state="pending" label={`${unverified} waiting for your check`} />}</div>
+          <div className="table-wrap"><table className="rows-mobile">
+            <thead><tr><th>Skill</th><th>Level</th><th>Check</th><th>Valid</th></tr></thead>
+            <tbody>{skillRows.map((s) => (
+              <tr key={s.id} data-needs={(canVerify && !s.verified) || undefined}><td data-label="Skill">{s.name}</td><td data-label="Level">{LEVEL[s.level]}</td>
+                <td data-label="Check"><span>{s.verified ? <Badge state="approved" label={`Verified by ${s.verified_by}`} /> : <Badge state="pending" label="Not checked yet" />}{s.verified && <div className="small muted">{when(s.verified_at)}</div>}</span></td>
+                <td data-label="Valid" className="small">{s.valid_from ?? "None"} → {s.valid_to ?? "open"}</td></tr>
+            ))}{d.skills.length === 0 && <tr><td colSpan={4} className="muted">No skills entered. Skills are recorded by hand, never inferred from the job title.</td></tr>}</tbody>
           </table></div>
           <SkillForms employeeId={id} skills={skills} records={d.skills.map((s) => ({ id: s.id, label: `${s.name} ${LEVEL[s.level]}`, verified: s.verified }))} canVerify={canVerify} canRecordLeave={actor.role !== "employee"} />
-          {!canVerify && <p className="small muted">Verifying skills needs the skill-verify capability, and nobody verifies their own record.</p>}
+          {actor.role !== "employee" && d.skills.length > 0 && <SkillCorrect records={d.skills.map((s) => ({ id: s.id, name: s.name, level: s.level, version: s.version, notes: s.notes }))} />}
+          {!canVerify && <p className="small muted" style={{ margin: 0 }}>Checking skills needs the skill-verify capability, and nobody verifies their own record.</p>}
         </section>
         <section className="card stack" aria-labelledby="h-wl">
           <h2 id="h-wl">Calendar, workload and balance</h2>
@@ -59,15 +63,21 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         </section>
       </div>
       {actor.role === "admin" && actor.id !== id && <EmployeeAdmin employee={{ id, version: e.version, active: e.active, job_role: e.job_role, permission_role: e.permission_role }} />}
-      <section className="card" aria-labelledby="h-as">
-        <h2 id="h-as">Assignments</h2>
-        <div className="table-wrap"><table>
-          <thead><tr><th>Visit</th><th>Project</th><th>Role</th><th>Reservation</th><th>From</th><th>To</th></tr></thead>
+      <section className="card stack" aria-labelledby="h-hist">
+        <h2 id="h-hist" style={{ margin: 0 }}>Role and skill changes</h2>
+        {d.history.length === 0 ? <p className="muted small">No changes recorded.</p> : (
+          <ul className="history">{d.history.map((h, i) => <li key={i}><span><strong>{h.what.replace(/_/g, " ")}</strong>{h.reason ? ` · ${h.reason}` : ""}</span><time>{when(Number(h.at))} · {h.actor ?? "system"}</time></li>)}</ul>
+        )}
+      </section>
+      <section className="card stack" aria-labelledby="h-as">
+        <h2 id="h-as" style={{ margin: 0 }}>Assignments</h2>
+        <div className="table-wrap"><table className="rows-mobile">
+          <thead><tr><th>Visit</th><th>Project</th><th>Role</th><th>Booking</th><th>From</th><th>To</th></tr></thead>
           <tbody>{d.assignments.map((a, i) => (
-            <tr key={i}><td><Link href={`/visits/${a.visit_id}`}>{a.visit}</Link></td><td>{a.project}</td><td>{a.role.replace(/_/g, " ")}</td><td><Badge state={a.state} />{a.hold_expires_at && <div className="small muted">hold expires {when(a.hold_expires_at)}</div>}</td><td>{when(a.start)}</td><td>{when(a.end)}</td></tr>
+            <tr key={i}><td data-label="Visit"><Link href={`/visits/${a.visit_id}`}>{a.visit}</Link></td><td data-label="Project">{a.project}</td><td data-label="Role">{a.role.replace(/_/g, " ")}</td><td data-label="Booking"><span><Badge state={a.state} />{a.hold_expires_at && <span className="small muted" style={{ display: "block" }}>hold expires {when(a.hold_expires_at)}</span>}</span></td><td data-label="From">{when(a.start)}</td><td data-label="To">{when(a.end)}</td></tr>
           ))}{d.assignments.length === 0 && <tr><td colSpan={6} className="muted">No assignments.</td></tr>}</tbody>
         </table></div>
       </section>
-    </>
+    </div>
   );
 }

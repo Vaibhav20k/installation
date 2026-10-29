@@ -1,0 +1,50 @@
+/* projects screens (28 Oct 2026 review). */
+
+/* ---------- Projects: Cards | List ---------- */
+.projects-search { align-items: flex-end; }
+.projects-search .field { flex: 1 1 260px; }
+.project-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.project-grid > li { min-width: 0; }
+.project-card { display: flex; flex-direction: column; }
+.project-card .plate-head { flex-wrap: nowrap; }
+.project-card .code-tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card-tags { display: inline-flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.project-card h3.plate-title { font-size: 20px; overflow-wrap: anywhere; }
+.project-card .site-facts { flex: 1; align-content: start; }
+.project-card .site-facts > div { grid-template-columns: 80px minmax(0, 1fr); }
+.project-card .site-facts dd { overflow-wrap: anywhere; }
+.project-card .site-progress { margin-top: auto; }
+
+/* ---------- Planning sheet: ruled grid, compact rows ---------- */
+.plan-sheet { --sheet-line: color-mix(in srgb, var(--rule) 60%, var(--rule-strong)); }
+.plan-sheet th, .plan-sheet td { padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--sheet-line); }
+.plan-sheet thead th { vertical-align: bottom; }
+.plan-sheet tbody tr:last-child > * { border-bottom: 0; }
+/* Column rules on every cell after the first; the pinned first column keeps its own edge. */
+.plan-sheet tr > * + * { border-left: 1px solid var(--rule); }
+.plan-sheet .pin { box-shadow: 1px 0 0 var(--sheet-line); }
+.plan-sheet tbody th.pin { background: var(--plate); font: 600 13px/1.3 var(--font-code); text-transform: none; letter-spacing: 0; color: var(--ink); }
+.plan-sheet td { max-width: 260px; line-height: 1.4; }
+.plan-sheet td.nw { white-space: nowrap; max-width: none; }
+.plan-sheet td ul { margin: 0; padding-left: 16px; }
+.plan-sheet tr.sub td { padding-top: 6px; padding-bottom: 6px; }
+.plan-sheet tr.sub td.pin { background: var(--plate-2); }
+@media (hover: hover) and (pointer: fine) { .plan-sheet tbody tr:not(.sub):hover > th.pin { background: var(--plate-2); } }
+
+.visit-cell { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+.visit-cell a { color: var(--ink); }
+.row-toggle { display: inline-grid; place-items: center; width: 28px; height: 28px; margin: -4px 0 -4px -6px; border-radius: var(--radius-xs); text-decoration: none; color: var(--ink-2); }
+.row-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
+.row-toggle[aria-expanded="true"] { color: var(--ink); background: var(--plate-3); }
+@media (pointer: coarse) { .row-toggle { width: 40px; height: 40px; margin: -10px 0 -10px -10px; } }
+
+.status-cell { white-space: nowrap; }
+.status-cell .small { display: block; margin-top: 3px; font-size: 12px; }
+
+.team-td { white-space: nowrap; }
+.team-cell { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; vertical-align: middle; }
+.team-count, .team-more { font: 600 11px/1 var(--font-code); font-variant-numeric: tabular-nums; padding: 4px 7px; border-radius: var(--radius-pill); flex-shrink: 0; }
+.team-count { background: var(--plate-3); color: var(--ink-2); }
+.team-count[data-short] { background: var(--warn-soft); color: var(--warn); }
+.team-lead { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.team-more { border: 1px solid var(--rule-strong); color: var(--ink-2); }

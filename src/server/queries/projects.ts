@@ -14,12 +14,14 @@ export async function listProjects(q: Queryable, actor: Actor, opts: { search?: 
   if (opts.search) { params.push(`%${opts.search}%`); where += ` and (p.name ilike $${params.length} or p.business_id ilike $${params.length} or c.name ilike $${params.length})`; }
   return q.query<{
     id: string; business_id: string; name: string; city: string; status: string; customer: string; customer_bid: string; manager: string | null;
-    orders: number; open_visits: number; next_visit: string | null; is_demo: boolean;
+    orders: number; open_visits: number; next_visit: string | null; is_demo: boolean; site_address: string; visits_total: number; visits_done: number;
   }>(
-    `select p.id, p.business_id, p.name, p.city, p.status, c.name customer, c.business_id customer_bid, m.name manager, p.is_demo,
+    `select p.id, p.business_id, p.name, p.city, p.site_address, p.status, c.name customer, c.business_id customer_bid, m.name manager, p.is_demo,
        (select count(*)::int from sales_order o where o.project_id = p.id) orders,
        (select count(*)::int from visit v where v.project_id = p.id and v.exec_status not in ('completed','closed','cancelled')) open_visits,
-       (select min(v.planned_start)::text from visit v where v.project_id = p.id and v.exec_status in ('unscheduled','scheduled')) next_visit
+       (select min(v.planned_start)::text from visit v where v.project_id = p.id and v.exec_status in ('unscheduled','scheduled')) next_visit,
+       (select count(*)::int from visit v where v.project_id = p.id and v.exec_status <> 'cancelled') visits_total,
+       (select count(*)::int from visit v where v.project_id = p.id and v.exec_status in ('completed','closed')) visits_done
      from project p join customer c on c.id = p.customer_id left join employee m on m.id = p.manager_id
      where ${where} order by p.business_id`, params);
 }

@@ -68,6 +68,8 @@ export async function plannedVsActual(q: Queryable, actor: Actor, month: string,
     actualWorkMinutes: net((a) => ["installation", "additional", "rework"].includes(a)),
     actualTravelMinutes: net((a) => a === "travel"),
     actualWaitingMinutes: net((a) => a === "waiting"),
+    // Person-days with any accepted work entry, by the site-local start date (one day per person, however many entries).
+    actualWorkDays: new Set(entries.filter((e) => ["installation", "additional", "rework"].includes(e.activity)).map((e) => `${e.employee_id}|${localDateOf(Number(e.s), TZ)}`)).size,
   };
 }
 
@@ -108,7 +110,16 @@ export async function dashboard(q: Queryable, actor: Actor, opts: { month: strin
     { id: "recon", label: `Reconciliations (${opts.month})`, value: recon.map((r) => `${r.n} ${r.state}`).join(", ") || "None run", definition: "Latest stored reconciliation revision per employee for the month, by state.", href: "/timesheets?tab=month", tone: "neutral" },
     { id: "variance", label: "Approved spend vs estimate", value: totalEstimate === null ? "N/A (no estimates)" : formatMoney(totalActual - totalEstimate), definition: "Approved expenses minus approved credits, less the latest estimate version per visit/project. N/A without estimates.", href: "/expenses", tone: totalEstimate !== null && totalActual > totalEstimate ? "warn" : "neutral" },
   ];
-  return { metrics, upcoming, conflicts, readiness, queues, expenses, monthBounds: monthBounds(opts.month), today };
+  // The signed-in person's own expense claims for the month (shown on the crew overview).
+  const mb = monthBounds(opts.month);
+  const [claims] = await q.query<{ submitted: number; approved: number; n: number }>(
+    `select coalesce(sum(amount_minor) filter (where state = 'submitted' and not is_credit), 0)::bigint submitted,
+       coalesce(sum(amount_minor) filter (where state = 'approved' and not is_credit), 0)::bigint approved,
+       count(*) filter (where state in ('submitted','approved') and not is_credit)::int n
+     from expense where claimant_id = $1 and incurred_on >= $2::date and incurred_on < $3::date`, [actor.id, mb.first, mb.next]);
+  const crew = { workDays: pva.actualWorkDays, workMinutes: pva.actualWorkMinutes, travelMinutes: pva.actualTravelMinutes, bookedMinutes: pva.reservedOccupancyMinutes,
+    claimedMinor: Number(claims!.submitted) + Number(claims!.approved), approvedMinor: Number(claims!.approved), claims: claims!.n, recon: recon.map((r) => r.state), unfinished: unfinished!.n };
+  return { metrics, upcoming, conflicts, readiness, queues, expenses, monthBounds: mb, today, crew };
 }
 
 /** Scheduled utilization: reserved working-calendar minutes / available calendar minutes after leave (not capped). */

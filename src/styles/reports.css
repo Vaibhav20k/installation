@@ -1,0 +1,148 @@
+/* reports screens (28 Oct 2026 review): KRA board, tracker chart strips and the hand-written SVG charts. */
+
+/* ---------- Filters ---------- */
+.report-filters { align-items: flex-end; gap: var(--s3); padding-block: 12px; }
+.report-filters .field { margin: 0; }
+
+/* ---------- Tracker views: charts above the exact table ---------- */
+.report-view { display: flex; flex-direction: column; gap: var(--s3); }
+.report-charts { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: stretch; }
+/* Flex rather than grid so a last, odd chart widens to fill its row instead of leaving a hole. */
+.report-charts > .chart { flex: 1 1 320px; background: var(--plate); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+@media (min-width: 760px) { .report-charts > .chart { padding: 20px; } }
+
+/* ---------- Chart frame ---------- */
+.chart { margin: 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.chart-cap { display: flex; flex-direction: column; gap: 2px; }
+.chart-title { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--ink); }
+.chart-sub { font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
+.chart-body { min-width: 0; }
+.chart-empty { margin: 0; font-size: 13px; color: var(--ink-2); padding: 12px; border: 1px dashed var(--rule-strong); border-radius: var(--radius-sm); }
+.chart .num, .kra .num { font-variant-numeric: tabular-nums; }
+
+/* Tone -> token. Applies to SVG marks (fill/stroke) and legend swatches (background). */
+.bar, .rc-swatch, .donut-arc { --tone: var(--ink); }
+[data-tone="muted"] { --tone: var(--ink-3); }
+[data-tone="faint"] { --tone: var(--rule-strong); }
+[data-tone="signal"] { --tone: var(--signal); }
+[data-tone="ok"] { --tone: var(--ok); }
+[data-tone="warn"] { --tone: var(--warn); }
+svg .bar { fill: var(--tone); }
+svg .track { fill: var(--plate-3); }
+svg .grid { stroke: var(--rule); stroke-width: 1; }
+svg .axis { stroke: var(--rule-strong); stroke-width: 1; }
+svg .ref { stroke: var(--ink); stroke-width: 2; }
+svg .hit { fill: transparent; }
+
+/* Legend: swatch + label + value, so colour is never the only cue. */
+.chart-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.chart-legend li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.chart-legend strong { color: var(--ink); font: 600 12.5px/1 var(--font-code); }
+.rc-swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--tone); flex: none; }
+
+/* ---------- Column chart ---------- */
+.cc { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+.cc-y { height: var(--cc-h); display: flex; flex-direction: column; justify-content: space-between; text-align: right;
+  font: 500 11px/1 var(--font-code); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cc-y span { display: block; height: 0; line-height: 0; }
+.cc-plot { min-width: 0; }
+.cc-svg { display: block; width: 100%; height: var(--cc-h); overflow: visible; }
+.cc-x { display: grid; margin-top: 6px; font: 500 11px/1.2 var(--font-code); color: var(--ink-2); text-align: center; }
+.cc-x span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: 1px; }
+
+/* ---------- Horizontal bars ---------- */
+.hbar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hbar li { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label value" "bar bar"; gap: 4px 12px; align-items: baseline; }
+.hbar-label { grid-area: label; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-value { grid-area: value; font: 600 13px/1 var(--font-code); color: var(--ink); white-space: nowrap; }
+.hbar-value .muted { font-weight: 500; }
+.hbar-track { grid-area: bar; display: block; width: 100%; height: 10px; border-radius: var(--radius-pill); overflow: hidden; }
+
+/* ---------- Donut ---------- */
+.donut { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+.donut-ring { position: relative; width: 136px; height: 136px; flex: none; }
+.donut-ring svg { width: 100%; height: 100%; display: block; }
+.donut-track { fill: none; stroke: var(--plate-3); stroke-width: 14; }
+.donut-arc { fill: none; stroke: var(--tone); stroke-width: 14; }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.donut-center strong { font: 700 26px/1 var(--font-code); color: var(--ink); }
+.donut-center span { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.donut .chart-legend { flex-direction: column; flex: 1 1 160px; gap: 8px; }
+.donut .chart-legend strong { margin-left: auto; padding-left: 12px; }
+
+/* ---------- Stack bar, meter, sparkline ---------- */
+.stack-bar { display: block; width: 100%; height: 14px; border-radius: var(--radius-xs); overflow: hidden; }
+.rc-meter { display: flex; flex-direction: column; gap: 6px; }
+.rc-meter-head { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; color: var(--ink-2); }
+.rc-meter-head strong { font: 600 13px/1.2 var(--font-code); color: var(--ink); white-space: nowrap; }
+.rc-meter svg { display: block; width: 100%; height: 10px; overflow: visible; }
+.rc-meter-ref { color: var(--ink-3); font-size: 12px; text-align: right; }
+.spark svg { display: block; width: 100%; height: 44px; overflow: visible; }
+.spark-line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.spark-area { fill: var(--plate-3); }
+.spark-x { display: flex; justify-content: space-between; font: 500 11px/1 var(--font-code); color: var(--ink-3); margin-top: 4px; }
+
+/* ---------- KRA board ---------- */
+.kra { display: flex; flex-direction: column; gap: var(--s4); container-type: inline-size; container-name: kra; }
+.kra h2 { margin: 0; }
+.kra-top { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); }
+.kra-top .notice { margin: 4px 0 0; }
+.kra-summary { display: flex; flex-direction: column; gap: var(--s3); padding: 16px; background: var(--plate-2); border-radius: var(--radius-sm); }
+.kra-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.kra-figures div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kra-figures dt { font-size: 12px; color: var(--ink-3); line-height: 1.3; }
+.kra-figures dd { margin: 0; font: 700 24px/1 var(--font-code); color: var(--ink); }
+.kra-figures dd span { font-size: 13px; font-weight: 500; color: var(--ink-3); }
+@container kra (min-width: 780px) { .kra-top { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; } }
+
+.kpi-grid { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); align-items: stretch; }
+.kpi-card { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--plate); min-width: 0; }
+.kpi-card[data-evidence="measured"] { border-color: var(--rule-strong); }
+.kpi-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.kpi-head h3 { margin: 0; font-size: 15.5px; line-height: 1.3; letter-spacing: -0.01em; }
+.kpi-meta { margin: 3px 0 0; font: 500 11px/1.3 var(--font-code); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
+.kpi-actual { display: flex; flex-direction: column; gap: 3px; }
+.kpi-label { font-size: 12px; color: var(--ink-3); }
+.kpi-value { font: 700 22px/1.15 var(--font-code); color: var(--ink); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.kpi-value[data-evidence="no_data"], .kpi-value[data-evidence="elsewhere"] { color: var(--ink-3); font-size: 18px; }
+.kpi-detail { font-size: 13px; color: var(--ink-2); }
+.kpi-visual { padding: 12px; background: var(--plate-2); border-radius: var(--radius-sm); }
+.kpi-visual.stack { gap: 14px; }
+.kpi-visual .chart { gap: 8px; }
+.kpi-visual .chart-title { font-size: 13px; }
+.kpi-trend-note { margin: 6px 0 0; font-size: 12px; color: var(--ink-2); }
+.kpi-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; font-size: 13px; }
+.kpi-facts div { min-width: 0; }
+.kpi-facts div:nth-child(3) { grid-column: 1 / -1; }
+.kpi-facts dt { font-size: 11.5px; color: var(--ink-3); margin-bottom: 2px; }
+.kpi-facts dd { margin: 0; color: var(--ink); line-height: 1.4; overflow-wrap: anywhere; }
+.kpi-facts .badge { margin-left: 4px; vertical-align: 1px; }
+.kpi-more { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--rule); padding-top: 6px; margin-top: auto; font-size: 13px; }
+.kpi-more summary { cursor: pointer; color: var(--ink-2); font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+.kpi-more summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.kpi-more ul { margin: 0 0 8px; padding-left: 18px; color: var(--ink-2); line-height: 1.45; }
+.kpi-more p { margin: 0 0 8px; color: var(--ink-2); line-height: 1.5; }
+
+@media (max-width: 480px) {
+  .kra-figures dd { font-size: 20px; }
+  .kpi-facts { grid-template-columns: minmax(0, 1fr); }
+  .donut { justify-content: center; }
+  .donut .chart-legend { flex-basis: 100%; }
+}
+
+/* ---------- Entrance: grow once, only when motion is welcome ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  svg .bar-y { transform-box: fill-box; transform-origin: 50% 100%; animation: rc-grow-y 380ms var(--ease-out) both; }
+  svg .bar-x { transform-box: fill-box; transform-origin: 0 50%; animation: rc-grow-x 380ms var(--ease-out) both; }
+  .donut-arc { animation: rc-arc 400ms var(--ease-out) both; }
+  .spark-line { animation: rc-fade 400ms var(--ease-out) both; }
+  .spark-area { animation: rc-fade 400ms var(--ease-out) both; }
+}
+@keyframes rc-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes rc-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes rc-arc { from { stroke-dashoffset: var(--arc); } to { stroke-dashoffset: 0; } }
+@keyframes rc-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@media print {
+  .report-charts > .chart, .kpi-card { box-shadow: none; break-inside: avoid; }
+}

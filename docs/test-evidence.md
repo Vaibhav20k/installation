@@ -131,3 +131,42 @@ Browser, production build on :3300, headless Chrome:
   - At 390 px there is no overflow, and there were no console errors.
 - **As EMP-001 (manager), EMP-008 (supervisor) and EMP-020 (worker):** `/skill-cards` returns 404 and the menu has no link to it.
 - **EMP-020's My day:** still loads with the shift panel.
+
+## Site operations (27 Oct 2026)
+
+- `tests/unit/site-days.test.ts` (7):
+  - several sessions on one date count as one day
+  - overlaps are merged before measuring
+  - an overnight session is split at local midnight
+  - a session ending exactly at midnight adds no date
+  - an open session is not counted
+  - a short visit is counted
+  - planned dates come from bookings
+- `tests/integration/site-ops.test.ts` (12):
+  - check-in is allowed only at sites booked today, and repeated check-in or check-out is idempotent
+  - the daily shift is unchanged
+  - the database refuses overlapping sessions
+  - corrections are made by a supervisor, with history
+  - an overnight check-out is refused, flagged and later corrected, and counts only its real dates
+  - workers can't read the head view
+  - managers create dated tasks; workers can't
+  - a tick counts once, is idempotent, and unticking needs a reason
+  - one finished day does not finish a task
+  - overdue items and moves keep the original date; stale task edits are refused
+  - calendar counts are never multiplied by bookings, and workers are refused the calendar
+  - handover overdue, due, done and not-set states work in the site's timezone
+  - a supervisor corrects a skill with history; a worker can't
+- Full suite: 27 files, 195 tests passed. `npm run build` succeeded.
+- Browser check on the production build:
+  - **List view:** the List/Calendar/Map switch works, and the "Overdue handover · due 23.10.26" flag shows.
+  - **Calendar:** the preview shows on keyboard focus and on hover; clicking a date lists the same number of visits as its cell.
+  - **Map:** shows the "Map not set up" notice and 3 city groups.
+  - **Site detail:**
+    - The workforce summary appears, with 8 people.
+    - A new task was added from the form.
+  - **Worker EMP-011 (390 px):**
+    - Site check-in survives a reload, and a double tap on check-out recorded one check-out.
+    - Ticked items persist after a reload.
+    - The page has no overflow, and there were no console errors.
+    - The worker gets "Not permitted" on the calendar.
+  - **Reduced motion:** turns the overdue animation off. Otherwise the pulse is 2.4 s.

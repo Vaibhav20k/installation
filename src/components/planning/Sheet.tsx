@@ -5,6 +5,7 @@ import Link from "next/link";
  * Identifying columns are pinned; column visibility and saved filters are per-viewer conveniences.
  */
 import { Fragment, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/Badge";
 
 export interface SheetRowView {
   visitId: string; visit: string; customerId: string; projectBid: string; orders: string; products: string; site: string; manager: string | null; visitType: string; execStatus: string;
@@ -23,6 +24,21 @@ const COLUMNS: Array<{ key: keyof SheetRowView | "dates"; label: string; default
   { key: "conflicts", label: "Conflicts", default: true }, { key: "nextAction", label: "Next action", default: true }, { key: "owner", label: "Owner", default: true }, { key: "due", label: "Due", default: true },
 ];
 const STORE = "im.sheet.columns";
+/** Short, identifier-like columns stay on one line; prose columns wrap inside a capped width. */
+const NOWRAP = new Set(["customerId", "projectBid", "orders", "visitType", "requestedStart", "departure", "dates", "returnAt", "workPersonDays", "estimate", "budget", "owner", "due", "manager"]);
+const shortName = (n: string) => n.replace(/\s*\([^)]*\)\s*$/, "");
+
+/** One compact line: staffing count, lead name and "+N"; the full list is in the tooltip, for screen readers, and in the expanded row. */
+function TeamCell({ r }: { r: SheetRowView }) {
+  const names = r.allocations.map((a) => shortName(a.employee));
+  const full = r.allocations.map((a) => a.employee).join(", ");
+  return (
+    <span className="team-cell" title={full || undefined}>
+      <span className="team-count" data-short={r.staffed < r.teamSize ? "" : undefined}>{r.staffed}/{r.teamSize}</span>
+      {names.length ? <><span className="team-lead" aria-hidden>{names[0]}</span>{names.length > 1 && <span className="team-more" aria-hidden>+{names.length - 1}</span>}<span className="sr-only">{full}</span></> : <span className="muted">No one yet</span>}
+    </span>
+  );
+}
 
 export function Sheet({ rows, exportHref }: { rows: SheetRowView[]; exportHref: string }) {
   const [visible, setVisible] = useState<Set<string>>(() => new Set(COLUMNS.filter((c) => c.default).map((c) => c.key)));
@@ -45,7 +61,7 @@ export function Sheet({ rows, exportHref }: { rows: SheetRowView[]; exportHref: 
   const cell = (r: SheetRowView, k: string) => {
     if (k === "dates") return r.plannedStart ? `${r.plannedStart} → ${r.plannedEnd}` : "Not set";
     if (k === "conflicts") return r.conflicts.length ? <ul style={{ margin: 0, paddingLeft: 16 }}>{r.conflicts.map((c) => <li key={c}>{c}</li>)}</ul> : "None";
-    if (k === "team") return `${r.staffed}/${r.teamSize}${r.team ? `: ${r.team}` : ""}`;
+    if (k === "team") return <TeamCell r={r} />;
     if (k === "requestedStart") return r.requestedStart ? `${r.requestedStart} (${(r.requestedMeaning ?? "").replace("_", " ")})` : "—";
     const v = (r as unknown as Record<string, unknown>)[k];
     return v === null || v === undefined || v === "" ? "—" : String(v).replace(/_/g, " ");
@@ -65,7 +81,7 @@ export function Sheet({ rows, exportHref }: { rows: SheetRowView[]; exportHref: 
         <a className="button" href={exportHref}>Export CSV (same filters)</a>
       </div>
       <div className="table-wrap" role="region" aria-label="Planning sheet" tabIndex={0}>
-        <table>
+        <table className="plan-sheet">
           <caption className="sr-only">One row per visit. Expand a row to see employee allocations; summaries are not multiplied by employee rows.</caption>
           <thead>
             <tr>
@@ -84,15 +100,15 @@ export function Sheet({ rows, exportHref }: { rows: SheetRowView[]; exportHref: 
             {sorted.map((r) => (
               <Fragment key={r.visitId}>
                 <tr>
-                  <th scope="row" className="pin" style={{ fontWeight: 400 }}>
-                    <div className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
-                      <button type="button" className="link" aria-expanded={open.has(r.visitId)} aria-label={`${open.has(r.visitId) ? "Hide" : "Show"} allocations for ${r.visit}`}
+                  <th scope="row" className="pin">
+                    <div className="visit-cell">
+                      <button type="button" aria-expanded={open.has(r.visitId)} className="link row-toggle" aria-label={`${open.has(r.visitId) ? "Hide" : "Show"} allocations for ${r.visit}`}
                         onClick={() => { const n = new Set(open); if (n.has(r.visitId)) n.delete(r.visitId); else n.add(r.visitId); setOpen(n); }}>{open.has(r.visitId) ? "▾" : "▸"}</button>
                       <Link href={`/visits/${r.visitId}`}>{r.visit}</Link>
                     </div>
                   </th>
-                  <td><span className="small">{r.approval} r{r.revision}<br />{r.execStatus.replace("_", " ")}</span></td>
-                  {cols.map((c) => <td key={c.key} className={c.key === "workPersonDays" ? "num" : undefined}>{cell(r, c.key)}</td>)}
+                  <td className="status-cell"><Badge state={r.execStatus} /><span className="small muted">{r.approval.replace(/_/g, " ")} · r{r.revision}</span></td>
+                  {cols.map((c) => <td key={c.key} className={[c.key === "workPersonDays" ? "num" : "", NOWRAP.has(c.key) ? "nw" : "", c.key === "team" ? "team-td" : ""].filter(Boolean).join(" ") || undefined}>{cell(r, c.key)}</td>)}
                 </tr>
                 {open.has(r.visitId) && (r.allocations.length ? r.allocations : [{ employee: "No staff selected", role: "", state: "" }]).map((a) => (
                   <tr key={`${r.visitId}-${a.employee}`} className="sub">
