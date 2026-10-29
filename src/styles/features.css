@@ -63,7 +63,7 @@
 .nw { white-space: nowrap; }
 
 /* Theme switch: three-way segmented control in the identity block, icon button in the app bar. */
-.theme-switch { display: inline-grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; margin-top: 10px; }
+.theme-switch { display: inline-grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); overflow: hidden; margin-top: 10px; }
 .theme-switch button { min-height: 36px; border: 0; border-radius: 0; padding: 0 10px; font-size: 12.5px; gap: 5px; background: transparent; color: inherit; }
 .theme-switch button + button { border-left: 1px solid var(--rule-strong); }
 .theme-switch button[aria-pressed="true"] { background: var(--ink); color: var(--plate); }
@@ -151,7 +151,7 @@ body:has(.nav-pending.on)::before { content: ""; position: fixed; top: 0; left: 
 .evidence-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .evidence-list li { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: start; }
 .evidence-list li[data-state="failed"] .evidence-status { color: var(--signal); }
-.evidence-thumb { width: 52px; height: 52px; border-radius: 3px; background: var(--plate-3); display: grid; place-items: center; overflow: hidden; color: var(--ink-3); }
+.evidence-thumb { width: 52px; height: 52px; border-radius: var(--radius-xs); background: var(--plate-3); display: grid; place-items: center; overflow: hidden; color: var(--ink-3); }
 .evidence-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .evidence-meta { display: grid; gap: 3px; min-width: 0; }
 .evidence-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -168,7 +168,7 @@ body:has(.nav-pending.on)::before { content: ""; position: fixed; top: 0; left: 
 .evidence-gallery { margin: 8px 0 0; }
 .evidence-gallery ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .evidence-gallery li { display: grid; gap: 3px; }
-.evidence-gallery img, .evidence-gallery video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 3px; background: var(--plate-3); }
+.evidence-gallery img, .evidence-gallery video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-xs); background: var(--plate-3); }
 .upload-status { position: fixed; z-index: 31; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px); display: inline-flex; align-items: center; gap: 8px;
   background: var(--chrome); color: var(--chrome-ink); border-radius: 999px; padding: 8px 14px; font-size: 13px; box-shadow: var(--shadow-lift); max-width: calc(100vw - 32px); }
 .upload-status[data-failed] svg { color: var(--signal); }

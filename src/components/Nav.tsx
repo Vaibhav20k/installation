@@ -1,105 +1,119 @@
 "use client";
 import Link, { useLinkStatus } from "next/link";
 /**
- * Navigation in two forms from one list: a graphite index rail on desktop and a thumb-reach
- * bottom bar on phones, with the rest of the catalogue in a "More" sheet. Counts show each
- * section's open extent (the tab-board discipline).
+ * Navigation in two forms from one list of 8 groups (nav-config.ts): a graphite rail on desktop with a sliding
+ * marker, and a thumb-reach bottom bar on phones with the rest in a "More" sheet. Pages inside a group are tabs
+ * (SectionTabs). A group's count is the sum of its pages' open work.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  ChartBar, CalendarDots, Clock, ClockCountdown, Cube, DotsNine, GearSix, HardHat, IdentificationCard, Kanban, ListChecks, Receipt, SealCheck, SquaresFour, Tray, UsersThree, type Icon,
+  ChartBar, DotsNine, Factory, GearSix, HardHat, Kanban, SlidersHorizontal, SquaresFour, Tray, Truck, UsersThree, Wallet, WarningDiamond, type Icon,
 } from "@phosphor-icons/react";
+import { SETTINGS_HREF, activeGroup, groupCount, groupHref, phoneSlots, visibleGroups, type Viewer } from "./nav-config";
+import { useSlidingIndicator } from "./useSlidingIndicator";
 
-interface Item { href: string; label: string; short: string; icon: Icon; staff?: boolean; admin?: boolean }
+const ICONS: Record<string, Icon> = { home: SquaresFour, sites: Kanban, dispatch: Truck, work: HardHat, inbox: Tray, money: Wallet, people: UsersThree, reports: ChartBar,
+  fdispatch: Factory, complaints: WarningDiamond, setup: SlidersHorizontal };
 
-const ITEMS: Item[] = [
-  { href: "/installations", label: "Installations", short: "Sites", icon: Kanban, staff: true },
-  { href: "/", label: "Dashboard", short: "Overview", icon: SquaresFour },
-  { href: "/my-day", label: "My day", short: "Today", icon: HardHat },
-  { href: "/attendance", label: "My attendance", short: "Attendance", icon: ClockCountdown },
-  { href: "/my-tasks", label: "My tasks", short: "Tasks", icon: ListChecks },
-  { href: "/requests", label: "My requests", short: "Requests", icon: Tray },
-  { href: "/planning", label: "Planning", short: "Plan", icon: CalendarDots, staff: true },
-  { href: "/approvals", label: "Approvals", short: "Approve", icon: SealCheck, staff: true },
-  { href: "/projects", label: "Projects", short: "Projects", icon: Cube },
-  { href: "/timesheets", label: "Timesheets", short: "Time", icon: Clock },
-  { href: "/people", label: "People & Skills", short: "People", icon: UsersThree },
-  { href: "/skill-cards", label: "Skill cards", short: "Cards", icon: IdentificationCard, admin: true },
-  { href: "/expenses", label: "Expenses", short: "Expenses", icon: Receipt },
-  { href: "/reports", label: "Reports", short: "Reports", icon: ChartBar },
-  { href: "/settings", label: "Settings", short: "Settings", icon: GearSix },
-];
-
-// Phone bar: the four most frequent actions for the role, then More.
-const PRIMARY_STAFF = ["/installations", "/", "/planning", "/approvals"];
-const PRIMARY_CREW = ["/my-day", "/attendance", "/my-tasks", "/requests"];
-
-/** Instant feedback on the tapped tab while the next screen streams in (no placeholder screen). */
+/** Instant feedback on the tapped tab while the next screen streams in. */
 function Pending() {
   const { pending } = useLinkStatus();
   return <span className={pending ? "nav-pending on" : "nav-pending"} aria-hidden />;
 }
 
-function useNav(role: string) {
-  const path = usePathname();
-  const isCurrent = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`) || (href === "/planning" && path.startsWith("/visits")));
-  // Navigation only mirrors permissions; every page and action checks them again on the server.
-  const visible = ITEMS.filter((i) => (!i.staff || role !== "employee") && (!i.admin || role === "admin"));
-  return { path, isCurrent, visible };
+/** A count that pops once when its value changes (keyed remount); it never loops. */
+function Count({ n, label }: { n: number; label?: boolean }) {
+  return n > 0 ? <span key={n} className="count" aria-label={label ? `${n} waiting` : undefined}>{n}</span> : null;
 }
 
-export function RailNav({ role, counts }: { role: string; counts: Record<string, number> }) {
-  const { isCurrent, visible } = useNav(role);
+function useNav(viewer: Viewer) {
+  const path = usePathname();
+  const groups = visibleGroups(viewer);
+  return { path, groups, current: activeGroup(groups, path)?.id ?? null };
+}
+
+export function RailNav({ viewer, counts }: { viewer: Viewer; counts: Record<string, number> }) {
+  const { groups, current } = useNav(viewer);
+  const ref = useRef<HTMLElement>(null);
+  useSlidingIndicator(ref, current);
   return (
-    <nav aria-label="Sections">
-      {visible.map((i) => (
-        <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
-          <Pending /><i.icon size={19} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
-          <span>{i.label}</span>
-          {(counts[i.href] ?? 0) > 0 ? <span className="count">{counts[i.href]}</span> : <span />}
-        </Link>
-      ))}
+    <nav aria-label="Sections" ref={ref}>
+      <span className="ind" aria-hidden />
+      {groups.map((g) => {
+        const I = ICONS[g.id]!, on = g.id === current;
+        return (
+          <Link key={g.id} href={groupHref(g)} data-key={g.id} aria-current={on ? "page" : undefined}>
+            <Pending /><I size={19} weight={on ? "fill" : "regular"} aria-hidden />
+            <span>{g.label}</span>
+            <Count n={groupCount(g, counts)} />
+          </Link>
+        );
+      })}
     </nav>
   );
 }
 
-export function TabBar({ role, counts, identity }: { role: string; counts: Record<string, number>; identity: React.ReactNode }) {
-  const { path, isCurrent, visible } = useNav(role);
-  const [more, setMore] = useState(false);
-  useEffect(() => setMore(false), [path]);
-  const primary = (role === "employee" ? PRIMARY_CREW : PRIMARY_STAFF).map((h) => visible.find((i) => i.href === h)).filter((i): i is Item => !!i);
-  const rest = visible.filter((i) => !primary.includes(i));
-  const moreActive = rest.some((i) => isCurrent(i.href));
-  const count = (href: string) => counts[href] ?? 0;
+/** Settings is rarely used, so it lives with the person's name instead of in the menu. */
+export function SettingsLink() {
+  const on = usePathname().startsWith(SETTINGS_HREF);
+  return (
+    <Link href={SETTINGS_HREF} className="settings-link" aria-current={on ? "page" : undefined}>
+      <GearSix size={17} weight={on ? "fill" : "regular"} aria-hidden /> Settings
+    </Link>
+  );
+}
+
+export function TabBar({ viewer, counts, identity }: { viewer: Viewer; counts: Record<string, number>; identity: React.ReactNode }) {
+  const { path, groups, current } = useNav(viewer);
+  const [sheet, setSheet] = useState<"closed" | "open" | "closing">("closed");
+  useEffect(() => setSheet("closed"), [path]);
+  const primary = phoneSlots(viewer, groups);
+  const rest = groups.filter((g) => !primary.includes(g));
+  const moreActive = rest.some((g) => g.id === current);
+  // The sheet leaves with a quick slide (180ms in motion.css), then unmounts.
+  useEffect(() => {
+    if (sheet !== "closing") return;
+    const t = setTimeout(() => setSheet("closed"), 190);
+    return () => clearTimeout(t);
+  }, [sheet]);
+  const close = () => setSheet((s) => (s === "open" ? "closing" : s));
+  const closing = sheet === "closing" || undefined;
   return (
     <>
       <nav aria-label="Primary" className="tabbar">
-        {primary.map((i) => (
-          <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined}>
-            <Pending /><i.icon size={23} weight={isCurrent(i.href) ? "fill" : "regular"} aria-hidden />
-            <span>{i.short}</span>
-            {count(i.href) > 0 && <span className="count" aria-label={`${count(i.href)} waiting`}>{count(i.href)}</span>}
-          </Link>
-        ))}
-        <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" aria-expanded={more}>
-          <DotsNine size={23} weight={moreActive ? "fill" : "regular"} aria-hidden />
+        {primary.map((g) => {
+          const I = ICONS[g.id]!, on = g.id === current;
+          return (
+            <Link key={g.id} href={groupHref(g)} aria-current={on ? "page" : undefined}>
+              <Pending /><span className="tab-ico"><I size={23} weight={on ? "fill" : "regular"} aria-hidden /></span>
+              <span>{g.short}</span>
+              <Count n={groupCount(g, counts)} label />
+            </Link>
+          );
+        })}
+        <button type="button" onClick={() => setSheet("open")} aria-haspopup="dialog" aria-expanded={sheet === "open"} data-on={moreActive || undefined}>
+          <span className="tab-ico"><DotsNine size={23} weight={moreActive ? "fill" : "regular"} aria-hidden /></span>
           <span>More</span>
         </button>
       </nav>
-      {more && (
+      {sheet !== "closed" && (
         <>
-          <div className="sheet-backdrop" onClick={() => setMore(false)} aria-hidden />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="More sections" onKeyDown={(e) => e.key === "Escape" && setMore(false)}>
+          <div className="sheet-backdrop" data-closing={closing} onClick={close} aria-hidden />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="More sections" data-closing={closing}
+            onKeyDown={(e) => e.key === "Escape" && close()}>
             <div className="grabber" aria-hidden />
             <nav aria-label="More sections">
-              {rest.map((i, n) => (
-                <Link key={i.href} href={i.href} aria-current={isCurrent(i.href) ? "page" : undefined} autoFocus={n === 0}>
-                  <Pending /><i.icon size={22} aria-hidden />
-                  {i.label}
-                  {count(i.href) > 0 && <span className="count">{count(i.href)}</span>}
-                </Link>
-              ))}
+              {rest.map((g, n) => {
+                const I = ICONS[g.id]!, on = g.id === current;
+                return (
+                  <Link key={g.id} href={groupHref(g)} aria-current={on ? "page" : undefined} autoFocus={n === 0} style={{ "--i": n } as React.CSSProperties}>
+                    <Pending /><I size={22} weight={on ? "fill" : "regular"} aria-hidden />
+                    <span>{g.label}<span className="sheet-sub">{g.tabs.map((t) => t.label).join(" · ")}</span></span>
+                    <Count n={groupCount(g, counts)} />
+                  </Link>
+                );
+              })}
             </nav>
             <div className="identity">{identity}</div>
           </div>
