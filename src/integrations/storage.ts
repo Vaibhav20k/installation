@@ -21,6 +21,8 @@ export interface EvidenceStorage {
 
 function rootDir() {
   if (process.env.IM_EVIDENCE_DIR) return path.resolve(process.env.IM_EVIDENCE_DIR);
+  // Vercel functions can only write to the temporary folder (files there are lost when the server restarts).
+  if (process.env.VERCEL) return path.join(os.tmpdir(), "magppie-installation-management", "evidence");
   const base = process.env.LOCALAPPDATA ?? process.env.XDG_DATA_HOME ?? path.join(os.homedir(), ".local", "share");
   return path.join(base, "magppie-installation-management", "evidence");
 }

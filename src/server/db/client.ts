@@ -136,6 +136,8 @@ export async function openDb(opts: { url?: string | null; dataDir?: string | nul
  */
 function dataDirFromEnv() {
   if (process.env.IM_DATA_DIR) return path.resolve(process.cwd(), process.env.IM_DATA_DIR);
+  // Vercel functions can only write to the temporary folder (the data there is lost when the server restarts).
+  if (process.env.VERCEL) return path.join(os.tmpdir(), "magppie-installation-management", "pg");
   const base = process.env.LOCALAPPDATA ?? process.env.XDG_DATA_HOME ?? path.join(os.homedir(), ".local", "share");
   return path.join(base, "magppie-installation-management", "pg");
 }
