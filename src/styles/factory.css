@@ -1,0 +1,121 @@
+/* Factory workspace screens (28 Oct 2026). */
+
+/* ---------- Workspace switch: [ Installation | Factory ] ---------- */
+.ws-switch { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; border-radius: var(--radius-pill); background: var(--plate-3); }
+.ws-switch .ind { border-radius: var(--radius-pill); background: var(--ink); box-shadow: 0 2px 8px -4px rgb(0 0 0 / 0.4); }
+.ws-switch button { position: relative; z-index: 1; min-height: 40px; padding: 0 14px; border: 0; background: none; border-radius: var(--radius-pill); color: var(--ink-2); font-weight: 650; font-size: 13.5px; gap: 6px; transition: color var(--dur-quick) var(--ease-out), transform var(--dur-press) var(--ease-press); }
+.ws-switch button[aria-checked="true"] { color: var(--plate); }
+.ws-switch button:active { transform: scale(0.97); }
+.ws-label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-pill); background: var(--plate-3); color: var(--ink-2); font-weight: 650; font-size: 13px; }
+/* On the dark rail the track and the active pill swap tones. */
+.rail .ws-switch { background: rgb(255 255 255 / 0.08); }
+.rail .ws-switch .ind { background: var(--chrome-ink); }
+.rail .ws-switch button { color: color-mix(in srgb, var(--chrome-ink) 70%, transparent); }
+.rail .ws-switch button[aria-checked="true"] { color: var(--chrome); }
+.rail .ws-label { background: rgb(255 255 255 / 0.08); color: var(--chrome-ink); align-self: flex-start; }
+@media (hover: hover) and (pointer: fine) { .ws-switch button:hover:not([aria-checked="true"]) { color: var(--ink); } .rail .ws-switch button:hover:not([aria-checked="true"]) { color: var(--chrome-ink); } }
+
+/* Phone: the switch gets its own full-width row under the top bar, so it never crowds the bell and is easy to hit. */
+.appbar { flex-wrap: wrap; row-gap: 8px; }
+.appbar-ws { order: 3; flex-basis: 100%; min-width: 0; }
+.appbar-ws .ws-switch { grid-auto-columns: 1fr; }
+.appbar-ws .ws-switch button { min-height: 40px; }
+.appbar-ws .ws-label { width: 100%; justify-content: center; }
+@media (min-width: 960px) { .appbar { flex-wrap: nowrap; } .appbar-ws { display: none; } }
+
+/* Factory side: personal pages under the name. */
+.ws-personal { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0 2px; font-size: 13px; }
+.ws-personal a { color: inherit; font-weight: 600; min-height: 32px; display: inline-flex; align-items: center; }
+.ws-moved { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+
+/* ---------- Factory home: six tiles, the chosen tile's list, Your steps (components/factory/FactoryHome.tsx) ----------
+   Reuses the .pipe-* look from home.css. Six tiles: 2 across on a phone (three even rows, no spanning finish line),
+   3 across on a tablet, one row of 6 on a laptop. */
+.fac-strip > li:last-child { grid-column: auto; }
+@media (min-width: 640px) { .fac-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1080px) { .fac-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.fac-list { margin-top: 18px; }
+.fac-row .pipe-age[data-overdue] { color: var(--signal); font-weight: 650; }
+.fac-row .flow-tag { min-height: 22px; padding: 2px 8px; font-size: 11.5px; border-radius: var(--radius-pill); }
+
+/* Replacements by phase: five counts that open the Complaints queue on that phase. Phone: a scrolling row inside
+   the plate (the strip never widens the page); laptop: five even cells. */
+.fac-phases { list-style: none; display: flex; gap: 8px; margin: 0 -16px 12px; padding: 2px 16px 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.fac-phases::-webkit-scrollbar { display: none; }
+.fac-phases > li { flex: none; min-width: 0; }
+@media (min-width: 640px) { .fac-phases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 12px; padding: 0; overflow: visible; } }
+.fac-phases a {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px; border: 1px solid var(--rule); border-radius: var(--radius-pill);
+  background: var(--plate); color: var(--ink); text-decoration: none; white-space: nowrap; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.fac-phase-n { font: 700 16px/1 var(--font-code); font-variant-numeric: tabular-nums; }
+.fac-phase-label { font-size: 13px; font-weight: 600; }
+.fac-phases a[data-zero] { color: var(--ink-3); }
+.fac-phases a[data-overdue] { border-color: color-mix(in srgb, var(--signal) 45%, transparent); background: var(--signal-soft); }
+.fac-phases a[data-overdue] .fac-phase-n { color: var(--signal); }
+.fac-phases a:focus-visible, .fac-more:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.fac-steps { margin-top: 16px; }
+.fac-note { margin: 0 0 12px; }
+.fac-more { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 8px; font-weight: 650; font-size: 14px; color: var(--ink); text-underline-offset: 3px; }
+
+/* ---------- Complaints queue (/complaints, components/factory/ComplaintQueue.tsx) ----------
+   Chips reuse .ct-seg / .ct-chips from complaints.css. Steps are small headings with their complaints below; the
+   whole row is one link. Phone: one column. Laptop: two columns of rows inside each step. */
+.fq { gap: 18px; }
+.fq-intro { margin: 0; max-width: 68ch; }
+.fq-empty { padding: 18px 0; }
+.fq-group { display: grid; gap: 8px; min-width: 0; }
+.fq-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; }
+.fq-head-phase { color: var(--ink-3); font-weight: 600; }
+.fq-head-mine { padding: 3px 8px 2px; border-radius: var(--radius-pill); background: var(--ok-soft); color: var(--ok); font-size: 11.5px; font-weight: 700; }
+.fq-group[data-tone="bad"] > .fq-head { color: var(--signal); }
+.fq-group[data-tone="bad"] > .fq-head .fq-head-phase { color: color-mix(in srgb, var(--signal) 70%, var(--ink-3)); }
+.fq-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+@media (min-width: 900px) { .fq-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.fq-row { min-width: 0; }
+.fq-link {
+  display: grid; gap: 6px; height: 100%; min-height: 44px; padding: 12px 14px; border: 1px solid var(--rule); border-left: 3px solid var(--rule-strong);
+  border-radius: var(--radius-sm); background: var(--plate); color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.fq-row[data-mine] .fq-link { border-left-color: var(--ok); }
+.fq-row[data-overdue] .fq-link { border-left-color: var(--signal); }
+.fq-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.fq-top .code-tag { min-width: 0; overflow-wrap: anywhere; }
+.fq-top .flow-tag { min-height: 22px; padding: 2px 8px; font-size: 11.5px; border-radius: var(--radius-pill); }
+.fq-mine { padding: 3px 8px 2px; border-radius: var(--radius-pill); background: var(--ok); color: var(--plate); font-size: 11.5px; font-weight: 700; }
+.fq-title { font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.fq-kind { font-weight: 700; }
+.fq-kind[data-kind="damaged"] { color: var(--signal); }
+.fq-kind[data-kind="missing"] { color: var(--warn); }
+.fq-sub { font-size: 13px; color: var(--ink-2); line-height: 1.35; overflow-wrap: anywhere; }
+.fq-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 12.5px; color: var(--ink-2); }
+.fq-age[data-overdue] { color: var(--signal); font-weight: 650; }
+.fq-owner { color: var(--ink-3); }
+.fq-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .fac-phases a:not([data-overdue]):hover { border-color: var(--rule-strong); background: var(--plate-2); }
+  .fac-phases a[data-overdue]:hover { border-color: var(--signal); }
+  .fq-link:hover { border-color: var(--rule-strong); background: var(--plate-2); }
+  .fq-row[data-mine] .fq-link:hover { border-left-color: var(--ok); }
+  .fq-row[data-overdue] .fq-link:hover { border-left-color: var(--signal); }
+  .fq-link:hover .fq-title { text-decoration: underline; text-underline-offset: 3px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fac-phases a, .fq-link, .fac-more { transition: transform var(--dur-press) var(--ease-press), background var(--dur-quick) var(--ease-out), border-color var(--dur-quick) var(--ease-out); }
+  .fac-phases a:active, .fq-link:active, .fac-more:active { transform: scale(0.97); }
+  .fq-rows > li { animation: page-in var(--dur-enter) var(--ease-out) backwards; }
+  .fq-rows > li:nth-child(2) { animation-delay: 30ms; }
+  .fq-rows > li:nth-child(n+3) { animation-delay: 60ms; }
+}
+
+/* The rail is narrow: the switch fills it, sized to its words, without icons. */
+.rail .ws-switch { grid-auto-columns: auto; justify-content: stretch; }
+.rail .ws-switch button { padding: 0 12px; font-size: 13px; }
+.rail .ws-switch button > svg { display: none; }
+.rail .ws-personal a { color: var(--chrome-ink); }
+/* The taller phone top bar must not cover the place a jump link lands on. */
+@media (max-width: 959px) { #complaints, .queue, .queue-quiet span { scroll-margin-top: 124px; } }
+/* Laptop: the first thing on a page keeps clear of the bell in the top right corner. */
+@media (min-width: 960px) { .main > .page-enter > :first-child { margin-right: 56px; } }

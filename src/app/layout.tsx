@@ -5,6 +5,16 @@ import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import "./globals.css";
 import "../styles/features.css";
 import "../styles/cards.css";
+import "../styles/site-ops.css";
+import "../styles/dispatch.css";
+import "../styles/motion.css";
+import "../styles/home.css";
+import "../styles/inbox.css";
+import "../styles/reports.css";
+import "../styles/projects.css";
+import "../styles/attendance.css";
+import "../styles/complaints.css";
+import "../styles/factory.css";
 
 const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-archivo", display: "swap" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-jetbrains", display: "swap" });

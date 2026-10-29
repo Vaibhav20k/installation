@@ -1,28 +1,68 @@
 import Link from "next/link";
-import { ArrowRight, CaretRight, Plus } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, CaretRight, FlagCheckered, Plus, ShieldWarning, Stamp, UsersThree } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { dashboard } from "@/server/queries/dashboard";
 import { listProjects } from "@/server/queries/projects";
+import { installationsBoard } from "@/server/queries/installations";
 import { localDateOf, monthOf } from "@/lib/dates";
 import { formatMoney, TZ } from "@/lib/format";
+import { shortDate } from "@/domain/install-schedule";
+import { handoverState } from "@/domain/handover";
 import { Badge } from "@/components/ui/Badge";
+import { TodaySites } from "@/components/install/TodaySites";
+import { NeedsYou, type Need } from "@/components/home/NeedsYou";
+import { CrewMonth } from "@/components/home/CrewMonth";
+import { ImPipeline } from "@/components/home/ImPipeline";
+import { DueCalendar, type DueItem } from "@/components/install/DueCalendar";
+import { defaultTile, imPipeline, isTileKey } from "@/server/queries/im-pipeline";
+import { FactoryHome } from "@/components/factory/FactoryHome";
+import { workspaceOf } from "@/server/workspace";
 
 export const metadata = { title: "Overview" };
+
+/** A decision is shown as overdue once its oldest item has waited this long (a display cue, not a policy). */
+const DECISION_DAYS = 2;
+const DAY_MS = 86_400_000;
+const s = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const { db, actor } = await session();
   const now = Date.now();
-  const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : monthOf(localDateOf(now, TZ));
+  // The Factory side has its own home: what to send, and the replacements to make (docs/plans/workspaces-design.md).
+  if ((await workspaceOf(db, actor)).current === "factory") return <FactoryHome db={db} actor={actor} now={now} sp={sp} />;
+  const today = localDateOf(now, TZ);
+  const crew = actor.role === "employee";
+  const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : monthOf(today);
   const projectId = sp.project || undefined;
-  const [d, projects] = await Promise.all([dashboard(db, actor, { month, projectId }, now), listProjects(db, actor)]);
+  const [d, projects, board, pipe] = await Promise.all([dashboard(db, actor, { month, projectId }, now), listProjects(db, actor), crew ? Promise.resolve([]) : installationsBoard(db, actor, today),
+    crew ? Promise.resolve(null) : imPipeline(db, actor, now)]);
+  // Installation Managers (and administrators) get the pipeline and the handover calendar first; nobody else's home changes.
+  const stage = pipe ? (isTileKey(sp.stage) ? sp.stage : defaultTile(pipe.tiles)) : null;
+  const due: DueItem[] = pipe ? board.flatMap((r) => {
+    const h = handoverState(r, now);
+    if (h.kind !== "due" && h.kind !== "overdue") return [];
+    return [{ visit_id: r.visit_id, due: h.due, late: h.kind === "overdue", days_late: h.kind === "overdue" ? h.days : 0,
+      customer: r.customer, name: r.customer_name.replace(/^Demo Customer /, ""), project: r.project_name, visit: r.visit, status: r.exec_status }];
+  }) : [];
   const q = d.queues;
   const waiting = q.plans.length + q.time.length + q.overtime.length + q.expenses.length;
-  const callouts = [
-    actor.role !== "employee" && waiting > 0 && { href: "/approvals", title: `${waiting} waiting for your decision`, meta: [q.plans.length && `${q.plans.length} plan`, q.time.length && `${q.time.length} time`, q.overtime.length && `${q.overtime.length} overtime`, q.expenses.length && `${q.expenses.length} expense`].filter(Boolean).join(", ") },
-    d.conflicts.length > 0 && { href: "/planning?view=sheet&conflicts=1", title: `${d.conflicts.length} staffing conflict${d.conflicts.length > 1 ? "s" : ""}`, meta: d.conflicts[0]!.conflicts[0] },
-    d.readiness.length > 0 && { href: `/visits/${d.readiness[0]!.visitId}?step=clearance`, title: `${d.readiness.length} visit${d.readiness.length > 1 ? "s" : ""} blocked on clearance`, meta: `${d.readiness[0]!.visit} starts ${d.readiness[0]!.plannedStart}` },
-  ].filter(Boolean) as Array<{ href: string; title: string; meta: string }>;
+  const oldest = Math.min(...q.plans.map((p) => p.submitted_at ?? now), ...q.time.map((t) => t.end), ...q.overtime.map((o) => o.end), now);
+  const lateHandovers = board.map((r) => ({ r, h: handoverState(r, now) })).filter((x) => x.h.kind === "overdue")
+    .sort((a, b) => (b.h.kind === "overdue" ? b.h.days : 0) - (a.h.kind === "overdue" ? a.h.days : 0));
+  const firstLate = lateHandovers[0];
+  const r0 = d.readiness[0];
+  const needs = [
+    !crew && waiting > 0 && { href: "/approvals", n: waiting, label: "Waiting for your decision", icon: <Stamp size={22} weight="duotone" />,
+      meta: [q.plans.length && `${q.plans.length} plan`, q.time.length && `${q.time.length} time`, q.overtime.length && `${q.overtime.length} overtime`, q.expenses.length && `${q.expenses.length} expense`].filter(Boolean).join(", "),
+      overdue: now - oldest >= DECISION_DAYS * DAY_MS },
+    d.conflicts.length > 0 && { href: "/planning?view=sheet&conflicts=1", n: d.conflicts.length, label: `Staffing ${s(d.conflicts.length, "conflict")}`, icon: <UsersThree size={22} weight="duotone" />,
+      meta: d.conflicts[0]!.conflicts[0]!, overdue: d.conflicts.some((c) => (c.plannedStart && c.plannedStart <= today) || c.conflicts.some((x) => x.startsWith("Overrun"))) },
+    r0 && { href: d.readiness.length === 1 ? `/visits/${r0.visitId}?step=clearance` : "/planning?view=sheet", n: d.readiness.length, label: `${s(d.readiness.length, "Visit")} blocked on clearance`, icon: <ShieldWarning size={22} weight="duotone" />,
+      meta: `${r0.visit} starts ${r0.plannedStart ? shortDate(r0.plannedStart) : "undated"}`, overdue: d.readiness.some((r) => !!r.plannedStart && r.plannedStart <= today) },
+    firstLate && { href: lateHandovers.length === 1 ? `/installations/${firstLate.r.visit_id}` : "/?sites=overdue#h-today", n: lateHandovers.length, label: `${s(lateHandovers.length, "Handover")} overdue`, icon: <FlagCheckered size={22} weight="duotone" />,
+      meta: `${firstLate.r.customer_name.replace(/^Demo Customer /, "")}${firstLate.h.kind === "overdue" ? `, ${firstLate.h.days} ${s(firstLate.h.days, "day")} late` : ""}`, overdue: true },
+  ].filter(Boolean) as Need[];
   const next = d.upcoming[0];
   const specs = d.metrics.filter((m) => !["approvals", "conflicts", "readiness"].includes(m.id));
 
@@ -47,30 +87,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </details>
       </div>
 
-      <div className="grid cols-2" style={{ alignItems: "start" }}>
-        <section className="plate" aria-labelledby="h-needs">
-          <div className="plate-head"><h2 id="h-needs" style={{ margin: 0 }}>Needs you</h2><span className="code-tag">{callouts.length} open</span></div>
-          {callouts.length === 0 ? <p className="muted" style={{ margin: 0 }}>Nothing is waiting on you. Decisions, conflicts and clearance blockers appear here first.</p> : (
-            <ol className="callouts">
-              {callouts.map((c, i) => (
-                <li key={c.href}><Link href={c.href}>
-                  <span className="callout-n">{i + 1}</span>
-                  <span><span className="callout-title">{c.title}</span><span className="callout-meta">{c.meta}</span></span>
-                  <CaretRight size={18} className="callout-go" aria-hidden />
-                </Link></li>
-              ))}
-            </ol>
-          )}
-        </section>
+      {pipe && stage && <ImPipeline tiles={pipe.tiles} rows={pipe.rows} selected={stage}
+        query={Object.fromEntries(Object.entries({ month: sp.month, project: sp.project }).filter((e): e is [string, string] => !!e[1]))}
+        aside={<DueCalendar items={due} today={today} />} />}
 
+      <NeedsYou items={needs} crew={crew} />
+
+      {!crew && <TodaySites rows={board} today={today} sp={sp} />}
+
+      <div className="grid cols-2 home-pair">
         {next ? (
           <section className="plate" aria-labelledby="h-next">
             <div className="plate-head">
-              <span className="code-tag">{next.visit} · {next.projectBid}</span>
+              <span className="code-tag">{crew ? "Your next job" : "Next visit"} · {next.visit} · {next.projectBid}</span>
               <Badge state={next.approval} className="stamp-hero stamp-press" />
             </div>
             <h2 id="h-next" className="plate-title">{next.site}, {next.visitType.replace("_", "-")} visit</h2>
-            <p className="plate-sub">{next.plannedStart} to {next.plannedEnd} · team {next.staffed}/{next.teamSize}</p>
+            <p className="plate-sub">{next.plannedStart ? shortDate(next.plannedStart) : "Not dated"} to {next.plannedEnd ? shortDate(next.plannedEnd) : "not dated"} · team {next.staffed} of {next.teamSize}</p>
             <ol className="callouts" style={{ marginTop: 8 }}>
               <li><Link href={`/visits/${next.visitId}`}>
                 <span className="callout-n quiet"><ArrowRight size={14} weight="bold" aria-hidden /></span>
@@ -80,25 +113,32 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </ol>
           </section>
         ) : (
-          <section className="plate"><h2>Next visit</h2><p className="muted" style={{ margin: 0 }}>No visit starts in the next 14 days. <Link href="/planning/new">Plan one</Link>.</p></section>
+          <section className="plate" aria-labelledby="h-next">
+            <h2 id="h-next">{crew ? "Your next job" : "Next visit"}</h2>
+            <p className="muted" style={{ margin: 0 }}>{crew ? "No job is booked for you in the next 2 weeks." : <>No visit starts in the next 14 days. <Link href="/planning/new">Plan one</Link>.</>}</p>
+          </section>
+        )}
+
+        {!crew && (
+          <section className="plate" aria-labelledby="h-spec">
+            <div className="plate-head"><h2 id="h-spec" style={{ margin: 0 }}>Figures for {month}</h2><span className="code-tag">tap a row</span></div>
+            <ul className="spec">
+              {specs.map((m) => (
+                <li key={m.id}>
+                  <Link className="spec-row" href={m.href}>
+                    <span className="spec-label">{m.label.replace(` (${month})`, "")}</span>
+                    <span className="spec-value" data-tone={m.tone}>{m.value}</span>
+                    <CaretRight size={16} className="callout-go" aria-hidden />
+                  </Link>
+                  <details><summary><Plus size={12} weight="bold" className="disclose" aria-hidden /> How it is counted</summary>{m.definition}</details>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
 
-      <section className="plate" aria-labelledby="h-spec">
-        <div className="plate-head"><h2 id="h-spec" style={{ margin: 0 }}>Figures for {month}</h2><span className="code-tag">tap a row</span></div>
-        <ul className="spec">
-          {specs.map((m) => (
-            <li key={m.id}>
-              <Link className="spec-row" href={m.href}>
-                <span className="spec-label">{m.label.replace(` (${month})`, "")}</span>
-                <span className="spec-value" data-tone={m.tone}>{m.value}</span>
-                <CaretRight size={16} className="callout-go" aria-hidden />
-              </Link>
-              <details><summary><Plus size={12} weight="bold" className="disclose" aria-hidden /> How it is counted</summary>{m.definition}</details>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {crew && <CrewMonth month={month} c={d.crew} upcoming={d.upcoming.length} />}
 
       <section className="plate" aria-labelledby="h-exp">
         <div className="plate-head"><h2 id="h-exp" style={{ margin: 0 }}>Spend against estimate</h2><Link className="code-tag" href="/expenses">All expenses</Link></div>
