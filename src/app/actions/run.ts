@@ -5,7 +5,7 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { getDb } from "@/server/db/client";
+import { database } from "@/server/session";
 import { DEMO_COOKIE, resolveActor } from "@/server/auth/actor";
 import { AppError, toAppError, type Result } from "@/server/errors";
 import { makeCtx, type Ctx } from "@/server/services/context";
@@ -13,7 +13,7 @@ import { makeCtx, type Ctx } from "@/server/services/context";
 export async function run<T>(op: (ctx: Ctx, input: unknown) => Promise<T>, input: unknown, revalidate: string[] = ["/"]): Promise<Result<T> & { revalidatedPaths?: string[] }> {
   let correlationId = "none";
   try {
-    const db = await getDb();
+    const db = await database();
     const actor = await resolveActor(db, (await cookies()).get(DEMO_COOKIE)?.value);
     const ctx = makeCtx(db, actor);
     correlationId = ctx.correlationId;

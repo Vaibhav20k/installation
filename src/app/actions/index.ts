@@ -5,7 +5,7 @@
  */
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getDb } from "@/server/db/client";
+import { database } from "@/server/session";
 import { DEMO_COOKIE, demoAuthEnabled, loadActor } from "@/server/auth/actor";
 import { run } from "./run";
 import * as planning from "@/server/services/planning";
@@ -38,7 +38,7 @@ import * as siteMnd from "@/server/services/site-mnd";
 
 export async function signInAs(employeeRef: string) {
   if (!demoAuthEnabled()) throw new Error("Demo sign-in is disabled in production.");
-  const actor = await loadActor(await getDb(), employeeRef);
+  const actor = await loadActor(await database(), employeeRef);
   if (!actor) throw new Error("Unknown or inactive employee");
   (await cookies()).set(DEMO_COOKIE, actor.businessId, { httpOnly: true, sameSite: "lax", path: "/" });
   // Everyone opens their own queue; recording controls remain on My day.

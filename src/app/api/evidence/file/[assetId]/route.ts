@@ -4,7 +4,7 @@
  */
 import { Readable } from "node:stream";
 import { cookies } from "next/headers";
-import { getDb } from "@/server/db/client";
+import { database } from "@/server/session";
 import { DEMO_COOKIE, resolveActor } from "@/server/auth/actor";
 import { HTTP_STATUS, toAppError } from "@/server/errors";
 import { authorizeAssetRead } from "@/server/services/evidence";
@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ assetId:
   const { assetId } = await params;
   if (!/^[0-9a-f-]{36}$/.test(assetId)) return new Response("Not found", { status: 404 });
   try {
-    const db = await getDb();
+    const db = await database();
     const actor = await resolveActor(db, (await cookies()).get(DEMO_COOKIE)?.value);
     const a = await authorizeAssetRead(db, actor, assetId);
     const storage = evidenceStorage();

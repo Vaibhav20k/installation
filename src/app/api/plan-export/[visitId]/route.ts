@@ -3,7 +3,7 @@
  * private fields, internal costs and approval commentary. It is a download; nothing is sent.
  */
 import { cookies } from "next/headers";
-import { getDb } from "@/server/db/client";
+import { database } from "@/server/session";
 import { DEMO_COOKIE, resolveActor } from "@/server/auth/actor";
 import { requireProjectScope } from "@/server/auth/permissions";
 import { AppError, HTTP_STATUS, toAppError } from "@/server/errors";
@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ visitId
   const { visitId } = await params;
   try {
     if (!/^[0-9a-f-]{36}$/i.test(visitId)) throw new AppError("not_found", "Visit not found");
-    const db = await getDb();
+    const db = await database();
     const actor = await resolveActor(db, (await cookies()).get(DEMO_COOKIE)?.value);
     const [v] = await db.query<{ project_id: string; business_id: string; project: string; site_address: string; visit_type: string; planned_start: string | null; planned_end: string | null; team_size: number }>(
       `select v.project_id, v.business_id, p.name project, p.site_address, v.visit_type, v.planned_start::text, v.planned_end::text, v.team_size from visit v join project p on p.id = v.project_id where v.id = $1`, [visitId]);

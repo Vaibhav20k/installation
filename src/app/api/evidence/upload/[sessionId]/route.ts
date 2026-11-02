@@ -3,7 +3,7 @@
  * signed-in user must also match the session. Bytes stream to private storage, never into the database.
  */
 import { cookies } from "next/headers";
-import { getDb } from "@/server/db/client";
+import { database } from "@/server/session";
 import { DEMO_COOKIE, resolveActor } from "@/server/auth/actor";
 import { HTTP_STATUS, toAppError } from "@/server/errors";
 import { receiveUpload } from "@/server/services/evidence";
@@ -22,7 +22,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ sessionI
   if (expires < Date.now()) return Response.json({ ok: false, message: "This upload link has expired. Retry the file." }, { status: 410 });
   if (!req.body) return Response.json({ ok: false, message: "No file received." }, { status: 400 });
   try {
-    const db = await getDb();
+    const db = await database();
     const actor = await resolveActor(db, (await cookies()).get(DEMO_COOKIE)?.value);
     const r = await receiveUpload(db, actor.id, sessionId, req.body, Date.now());
     return Response.json({ ok: true, bytes: r.bytes });

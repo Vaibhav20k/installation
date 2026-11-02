@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { getDb } from '@/server/db/client';
+import { database } from "@/server/session";
 import { DEMO_COOKIE, resolveActor } from '@/server/auth/actor';
 import { HTTP_STATUS, toAppError } from '@/server/errors';
 import { approvalQueues } from '@/server/queries/time';
@@ -11,7 +11,7 @@ import { actorRoles } from '@/server/services/flow-core';
 export const dynamic='force-dynamic';
 export async function GET(){
  try {
-  const db=await getDb();
+  const db=await database();
   const actor=await resolveActor(db,(await cookies()).get(DEMO_COOKIE)?.value);
   const counts:Record<string,number>={};
   await Promise.all([

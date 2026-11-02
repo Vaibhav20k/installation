@@ -3,7 +3,7 @@
  * the window, versions and provisional status. Formula-like text is escaped.
  */
 import { cookies } from "next/headers";
-import { getDb } from "@/server/db/client";
+import { database } from "@/server/session";
 import { DEMO_COOKIE, resolveActor } from "@/server/auth/actor";
 import { AppError, HTTP_STATUS, toAppError } from "@/server/errors";
 import { requireRole } from "@/server/auth/permissions";
@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ view: st
   const now = Date.now();
   const month = /^\d{4}-\d{2}$/.test(url.searchParams.get("month") ?? "") ? url.searchParams.get("month")! : monthOf(localDateOf(now, "Asia/Kolkata"));
   try {
-    const db = await getDb();
+    const db = await database();
     const actor = await resolveActor(db, (await cookies()).get(DEMO_COOKIE)?.value);
     // Internal cost, staffing and KRA exports are for supervisors and above; issues and productivity carry no money.
     if (["sheet", "cost", "ftr", "kra"].includes(view)) requireRole(actor, "supervisor", "internal report exports");
