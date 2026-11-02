@@ -1,0 +1,38 @@
+# Types, tests with the coverage gate, production build and browser tests, on every push and pull request.
+# Everything runs on throwaway embedded databases; no secrets are needed and nothing is deployed from here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Playwright drives the installed Chrome (see playwright.config.ts).
+      - run: npx playwright install --with-deps chrome
+      - run: npm run ci
+      - name: Keep browser test evidence when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
