@@ -1,1 +1,9 @@
 /* attendance screens (28 Oct 2026 review). */
+
+/* Punch locations report. */
+.punch-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.punch-note { margin: 0; }
+.punch-place { display: grid; gap: 2px; justify-items: start; }
+.punch-place a { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-weight: 600; }
+@media (pointer: coarse) { .punch-place a { min-height: 44px; } }
+.punch-date { white-space: nowrap; }

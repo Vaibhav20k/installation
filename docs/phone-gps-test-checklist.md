@@ -23,12 +23,12 @@ Sign in on the phone as the assigned crew member, then record the result of each
 | # | Do this | Expected | Result (phone, pass/fail, note) |
 |---|---|---|---|
 | 1 | Punch in outdoors, and tap **Allow** on the location prompt | The punch saves | |
-| 2 | **Blocked for now:** no screen shows the saved location yet, so its accuracy can't be checked here | Run this once a location view exists | |
-| 3 | Punch out from the same place | The punch saves with a location | |
+| 2 | On a laptop, open **Reports → Punch locations** and tap **Open map** on that punch | The map point is where you stood, and the row shows distance from site and accuracy | |
+| 3 | Punch out from the same place, then refresh the report | The row shows a clock-out time and map link | |
 | 4 | Clear the site's location permission, punch in, and tap **Block** | The punch is refused with a clear message saying to allow location or ask the supervisor | |
 | 5 | Allow location in the phone's settings and try again | The punch now works | |
 | 6 | Turn the phone's GPS off completely and punch | A clear message appears within about 15 seconds; the app does not freeze | |
-| 7 | Punch inside a building or basement | The punch saves or gives a clear message; note any delay | |
+| 7 | Punch inside a building or basement | The punch saves or gives a clear message; note the accuracy shown and how far off the point is | |
 | 8 | Punch with weak mobile data | Note the time taken and any error | |
 | 9 | As a supervisor, record a correction for a person who could not punch | It saves only with a reason | |
 
@@ -36,6 +36,6 @@ Sign in on the phone as the assigned crew member, then record the result of each
 
 - Pass or fail for each test, with the phone model.
 - Screenshots of any failure.
-- Tests 2 and 7 (once a location view exists): how many metres off the point was, by your own estimate on the map.
+- Tests 2 and 7: how many metres off the point was, by your own estimate on the map.
 
 Decide from the results: is the location accurate enough for your report? If indoor points are often far off, the punch may need to show its accuracy to the manager.

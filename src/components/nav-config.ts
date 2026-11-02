@@ -29,7 +29,7 @@ export const GROUPS: NavGroup[] = [
   // Time and money recorded against work; both go to approval.
   { id: "money", label: "Time & money", short: "Time", tabs: [tab("/timesheets", "Timesheets"), tab("/expenses", "Expenses")] },
   { id: "people", label: "People", short: "People", tabs: [tab("/people", "People & Skills"), tab("/skill-cards", "Skill cards", admin)] },
-  { id: "reports", label: "Reports", short: "Reports", tabs: [tab("/reports", "Reports")] },
+  { id: "reports", label: "Reports", short: "Reports", tabs: [tab("/reports", "Reports"), tab("/reports/punches", "Punch locations", staff)] },
 ];
 
 /** The Factory side: what to send, and the replacements to make. */
@@ -57,7 +57,7 @@ const OPERATIONS_GROUPS:NavGroup[]=[
  {id:'complaints',label:'Complaints',short:'Complaints',who:flow,tabs:[tab('/complaints','Complaints',undefined,['/dispatch/complaints'])]},
  {id:'siteplans',label:'Site Plans',short:'Plans',tabs:[tab('/site-plans','Site Plans'),tab('/planning','Visit planning',staff,['/visits'])]},
  {id:'team',label:'Team & Attendance',short:'Team',tabs:[tab('/attendance','Attendance'),tab('/people','Team'),tab('/timesheets','Timesheets'),tab('/expenses','Expenses'),tab('/approvals','Approvals',staff),tab('/requests','Requests'),tab('/skill-cards','Skill cards',admin)]},
- {id:'reports',label:'Reports',short:'Reports',tabs:[tab('/reports/operations','Process reports',undefined,['/preventive-actions']),tab('/reports','All reports')]},
+ {id:'reports',label:'Reports',short:'Reports',tabs:[tab('/reports/operations','Process reports',undefined,['/preventive-actions']),tab('/reports/punches','Punch locations',staff),tab('/reports','All reports')]},
  {id:'setup',label:'Setup',short:'Setup',who:admin,tabs:[tab('/dispatch/setup','Dispatch setup')]},
 ];
 export function visibleGroups(v: Viewer): NavGroup[] {

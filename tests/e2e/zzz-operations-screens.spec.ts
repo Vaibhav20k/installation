@@ -49,3 +49,22 @@ test.describe("revised process on a phone", () => {
     await shot(page, "factory-phone");
   });
 });
+
+test.describe("punch locations", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  test("the report opens, fits a phone and offers a scoped download", async ({ page }) => {
+    await signIn(page, "EMP-004");
+    await page.goto("/reports/punches");
+    await expect(page.getByRole("heading", { name: "Punch locations" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const res = await page.request.get("/api/export/punches?from=2026-09-01&to=2026-09-30");
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain("Clock-in latitude");
+  });
+  test("the download is refused without a session", async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const res = await ctx.request.get("http://localhost:3310/api/export/punches");
+    expect(res.status()).toBe(401);
+    await ctx.close();
+  });
+});

@@ -30,7 +30,7 @@ describe("visible groups and tabs per person", () => {
       ["inbox", ["/approvals", "/requests"]],
       ["money", ["/timesheets", "/expenses"]],
       ["people", ["/people", "/skill-cards"]],
-      ["reports", ["/reports"]],
+      ["reports", ["/reports", "/reports/punches"]],
     ]);
   });
   it("crew keep Projects but not the staff-only pages, Dispatch, Approvals or Skill cards", () => {

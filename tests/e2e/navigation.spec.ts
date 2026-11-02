@@ -15,7 +15,7 @@ const OLD_URLS: Array<[string, string, string | null]> = [
   ["/", "Home", "My tasks"], ["/?overview=1", "Home", "Overview"], ["/installations", "Sites", "Installations"], ["/planning", "Sites", "Planning"], ["/projects", "Sites", "Projects"],
   ["/dispatch", "Dispatch", null], ["/my-day", "My work", "My day"], ["/my-tasks", "Home", "My tasks"], ["/attendance", "My work", "Attendance"],
   ["/approvals", "Inbox", "To approve"], ["/requests", "Inbox", "My requests"], ["/timesheets", "Time & money", "Timesheets"], ["/expenses", "Time & money", "Expenses"],
-  ["/people", "People", "People & Skills"], ["/skill-cards", "People", "Skill cards"], ["/reports", "Reports", null],
+  ["/people", "People", "People & Skills"], ["/skill-cards", "People", "Skill cards"], ["/reports", "Reports", "Reports"], ["/reports/punches", "Reports", "Punch locations"],
 ];
 
 test.describe("desktop", () => {
