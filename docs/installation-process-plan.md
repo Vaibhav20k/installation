@@ -1,0 +1,15 @@
+# Installation process implementation plan
+
+The audit is complete. Extend the existing app in five phases, preserving existing financial documents, incoming QC, evidence, reservations, reports and historical records.
+
+1. **A — Foundation:** additive migration; separate operational roles and designations; policy settings; per-order dispatch sequence; persisted payment/readiness/QA/approval evidence; workforce regularization and confirmation; versioned operations flows. Keep legacy definitions and histories intact. Publish the new flows through Setup so an administrator can configure real thresholds and role memberships before use; do not invent approval amounts or silently reroute active records.
+2. **B — Dispatch:** packaging/RFD, selected IM, readiness hold, Dispatch payment request, Finance decision, immutable gate checks before shipment, separate receipt/MND, completion notification to Factory. Preserve tax invoice/e-way stages and existing unlisted-item support as an explicitly labelled legacy exception.
+3. **C — Workforce:** reuse plan/visit/reservation, with multi-site creation producing linked existing plans. Add designation selection, policy-routed approval, day exclusions, geographic punches, planned/actual/budget comparison and completion confirmation. Keep actual attendance when a planned day is removed.
+4. **D — Complaint:** dynamic approval role resolved from snapshotted configurable thresholds, QC handoff, separate stock/purchase/production paths, mandatory QA cause/action, linked preventive work and replacement installation before closure. Reuse history/evidence and issue records.
+5. **E — Tasks/reporting:** role-specific My Tasks landing, canonical record links, observer notifications, elapsed-step reporting, recurrence and cause comparison, workforce variance and preventive work queues.
+
+Policy decisions: tier limits are inclusive upper bounds; Tier 3 is above Tier 2. Missing settings block the dependent action with an Admin setup message. Not Ready retains a hold and configurable reminder. Workforce uses configurable daily minutes and hourly cost separately for normal and complaint work, with explicit budget hours per plan. Rejections return to the responsible preparation step with a mandatory comment. Existing four-eyes approval remains. New final root cause is distinct from original missing/damaged issue type; suspected cause is optional and mismatch is only known when both causes exist.
+
+Migration boundary: old records remain on their pinned flow and retain their original meaning. New gates apply to the new operations flow; legacy records are visibly labelled. No historical receipt is relabelled as installed and no historical payment or QA evidence is fabricated. In-flight conversion requires explicit evidence reconciliation and is not performed automatically.
+
+Verification: meaningful service integration tests for role boundaries, gate failures, all complaint supply branches, replacement lineage, notification recipients, workforce exclusions and actual hours. Run type checking and existing regression suites; use isolated databases for all test orders.
