@@ -36,11 +36,11 @@ import * as complaintFlow from "@/server/services/complaint";
 import * as flowAdmin from "@/server/services/flow-admin";
 import * as siteMnd from "@/server/services/site-mnd";
 
-export async function signInAs(employeeId: string) {
+export async function signInAs(employeeRef: string) {
   if (!demoAuthEnabled()) throw new Error("Demo sign-in is disabled in production.");
-  const actor = await loadActor(await getDb(), employeeId);
+  const actor = await loadActor(await getDb(), employeeRef);
   if (!actor) throw new Error("Unknown or inactive employee");
-  (await cookies()).set(DEMO_COOKIE, actor.id, { httpOnly: true, sameSite: "lax", path: "/" });
+  (await cookies()).set(DEMO_COOKIE, actor.businessId, { httpOnly: true, sameSite: "lax", path: "/" });
   // Everyone opens their own queue; recording controls remain on My day.
   redirect("/my-tasks");
 }

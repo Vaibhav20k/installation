@@ -19,11 +19,16 @@ interface EmployeeRow {
   capabilities: Capability[]; manager_id: string | null; active: boolean;
 }
 
-export async function loadActor(q: Queryable, employeeId: string): Promise<Actor | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(employeeId)) return null;
+/**
+ * Finds a person by employee number (what the demo cookie holds: on Vercel each server copy seeds its own database with
+ * different random ids, but the same numbers) or by id (older cookies).
+ */
+export async function loadActor(q: Queryable, ref: string): Promise<Actor | null> {
+  const byId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref);
+  if (!byId && !/^[A-Z0-9-]{2,40}$/i.test(ref)) return null;
   const [r] = await q.query<EmployeeRow>(
-    "select id, business_id, name, job_role, permission_role, capabilities, manager_id, active from employee where id = $1",
-    [employeeId],
+    `select id, business_id, name, job_role, permission_role, capabilities, manager_id, active from employee where ${byId ? "id = $1" : "business_id = $1"}`,
+    [ref],
   );
   if (!r || !r.active) return null;
   return { id: r.id, businessId: r.business_id, name: r.name, jobRole: r.job_role, role: r.permission_role, capabilities: r.capabilities ?? [], managerId: r.manager_id };

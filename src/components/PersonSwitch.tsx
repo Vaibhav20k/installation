@@ -19,16 +19,16 @@ export function PersonSwitch({ people, currentId, variant }: { people: Person[];
   const select = (
     <select
       aria-label="Switch person (demo)"
-      value={currentId}
+      value={current?.business_id ?? ""}
       disabled={pending}
       aria-busy={pending}
-      onChange={(e) => { const id = e.target.value; start(() => signInAs(id)); }}
+      onChange={(e) => { const ref = e.target.value; start(() => signInAs(ref)); }}
       className={variant === "chip" ? "person-chip-select" : undefined}
     >
       {groups.map(group => <optgroup key={group.id} label={group.label}>
-        {group.people.map(p => <option key={p.id} value={p.id}>{p.name} · {p.business_id} · {p.job_role.replace(/_/g, " ")}</option>)}
+        {group.people.map(p => <option key={p.id} value={p.business_id}>{p.name} · {p.business_id} · {p.job_role.replace(/_/g, " ")}</option>)}
       </optgroup>)}
-      {!currentIsListed && current && <optgroup label="Current signed-in person"><option value={current.id}>{current.name} · {current.business_id}</option></optgroup>}
+      {!currentIsListed && current && <optgroup label="Current signed-in person"><option value={current.business_id}>{current.name} · {current.business_id}</option></optgroup>}
     </select>
   );
   if (variant === "chip") return <>{select}{pending && <span className="person-switch-status" role="status">Switching person…</span>}</>;

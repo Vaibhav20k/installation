@@ -32,7 +32,7 @@ export function IdentityDirectory({ people }: { people: Person[] }) {
       <div className="plate-head"><h2 id={`h-${g.id}`}>{g.label}</h2><span className="code-tag">{g.people.length}</span></div>
       <p className="identity-group-note muted">{PURPOSE[g.id]}</p>
       <ul className="callouts">{g.people.map(p => <li key={p.id}>
-        <form action={signInAs.bind(null, p.id)}><SignInButton>
+        <form action={signInAs.bind(null, p.business_id)}><SignInButton>
           <span className="monogram" aria-hidden>{p.name.split(/\s+/).map(x => x[0]).join("").slice(0, 2)}</span>
           <span><span className="callout-title">{p.name} <span className="code">{p.business_id}</span></span>
             <span className="callout-meta">{p.job_role.replaceAll("_", " ")} · {p.base_city}</span>
