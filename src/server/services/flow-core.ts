@@ -9,6 +9,7 @@ import { requireProjectScope, projectScopeSql, type Actor } from "../auth/permis
 import { conflict, forbidden, notFound, validation } from "../errors";
 import { checkDefinition, checkData, resolveMove, stageIndex, stageOf, zFlowDefinition, type FlowData, type FlowDefinition, type StageSpec } from "@/domain/flow";
 import { DEFAULT_FLOWS } from "@/domain/flow-defaults";
+import { OPERATIONS_DISPATCH, OPERATIONS_COMPLAINT } from '@/domain/operations-flow';
 import { addDays, startOfLocalDay } from "@/lib/dates";
 import { iso, type Ctx } from "./context";
 
@@ -71,7 +72,7 @@ async function inProjectScope(q: Queryable, actor: Actor, projectId: string) {
  */
 export async function canSeeCost(q: Queryable, actor: Actor, projectId: string | null) {
   const roles = await actorRoles(q, actor.id);
-  if (actor.role === "admin" || roles.includes("management") || roles.includes("planning")) return true;
+  if (actor.role === "admin" || roles.some(r=>["management","planning","founders_office","owners","qa"].includes(r))) return true;
   return projectId ? inProjectScope(q, actor, projectId) : false;
 }
 
@@ -260,6 +261,12 @@ export async function validateDefinition(q: Queryable, raw: unknown) {
   const parsed = zFlowDefinition.safeParse(raw);
   if (!parsed.success) throw validation("The flow definition is not in the expected shape.", parsed.error.issues.slice(0, 8).map((i) => `${i.path.join(".") || "definition"}: ${i.message}`));
   const problems = checkDefinition(parsed.data, await roleCodes(q));
+  if(parsed.data.protocol){
+    const required=parsed.data.flow==='dispatch'?OPERATIONS_DISPATCH:OPERATIONS_COMPLAINT;
+    // Administrators can rename labels and tune deadlines, but cannot remove operational gates.
+    const structure=(d:FlowDefinition)=>d.stages.map(s=>({code:s.code,owner:s.owner,handler:s.handler,next:s.next,branches:s.branches,backTo:s.backTo,terminal:s.terminal,fields:s.fields.map(({label,help,...field})=>field)}));
+    if(JSON.stringify(structure(zFlowDefinition.parse(required)))!==JSON.stringify(structure(parsed.data)))problems.push('Operations stages, owners, required evidence and transitions are protected. Change labels or deadlines only.');
+  }
   if (problems.length) throw validation("The flow definition has problems.", problems.slice(0, 12));
   return parsed.data;
 }

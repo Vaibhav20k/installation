@@ -7,6 +7,7 @@
  * flow. When the factory has not added a list yet, the screen opens on reporting, and "nothing missing" is an
  * explicit choice. Both panels stay mounted (only hidden) so photos already uploading are never lost.
  */
+import { ROOT_CAUSES } from "@/domain/operations-flow";
 import { useCallback, useState } from "react";
 import { CheckCircle, Info, ListChecks, Plus, WarningCircle } from "@phosphor-icons/react";
 import { receiveDispatch } from "@/app/actions";
@@ -17,13 +18,13 @@ import { FilesField, type FileState } from "./StageForms";
 import { PriorityChoice, UnlistedItemCard, newUnlisted, unlistedErrors, type UnlistedDraft } from "./UnlistedItemCard";
 
 interface Line { id: string; name: string; quantity: string; unit: string }
-interface Issue { kind: "" | "missing" | "damaged"; quantity: string; reason: string; photos: FileState | null; priority: Priority }
+interface Issue { kind: "" | "missing" | "damaged"; quantity: string; reason: string; photos: FileState | null; priority: Priority; suspectedCause?:string }
 type Mode = "list" | "other";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const samePhotos = (a: FileState | null, b: FileState) => a?.draftKey === b.draftKey && a.ready === b.ready && a.pending === b.pending;
 
-export function ReceiveForm({ dispatchId, version, stage, lines }: { dispatchId: string; version: number; stage: string; lines: Line[] }) {
+export function ReceiveForm({ dispatchId, version, stage, lines, operations=false }: { operations?:boolean; dispatchId: string; version: number; stage: string; lines: Line[] }) {
   const act = useAction(receiveDispatch);
   const hasList = lines.length > 0;
   const [mode, setMode] = useState<Mode>(hasList ? "list" : "other");
@@ -47,12 +48,12 @@ export function ReceiveForm({ dispatchId, version, stage, lines }: { dispatchId:
   const choose = (m: Mode) => { setMode(m); if (m === "other" && extra.length === 0) addExtra(); };
 
   const open = Object.entries(issues);
-  const lineTodo = open.filter(([, i]) => !i.kind || !i.quantity || i.reason.trim().length < 3 || !i.photos?.ready || (i.photos?.pending ?? 0) > 0)
+  const lineTodo = open.filter(([, i]) => !i.kind || !i.quantity || i.reason.trim().length < 3 || ((!operations||i.kind==='damaged') && (!i.photos?.ready || (i.photos?.pending ?? 0) > 0)))
     .map(([id]) => lines.find((l) => l.id === id)?.name ?? "a line");
   const extraTodo = extra.flatMap((u, n) => (Object.keys(unlistedErrors(u)).length ? [u.name.trim() || `item ${n + 1}`] : []));
   const todo = [...lineTodo, ...extraTodo];
   const complaints = open.length + extra.length;
-  const cta = act.pending ? "Saving…" : complaints ? "Mark received and raise complaints" : hasList ? "Mark received in full" : "Nothing missing or damaged – mark received";
+  const cta = act.pending ? "Saving…" : complaints ? (operations?"Complete MND check and raise complaints":"Mark received and raise complaints") : hasList ? (operations?"Everything is OK – complete MND check":"Mark received in full") : "Nothing missing or damaged – mark received";
 
   return (
     <form className="form receive" onSubmit={(e) => {
@@ -62,7 +63,7 @@ export function ReceiveForm({ dispatchId, version, stage, lines }: { dispatchId:
         dispatchId, version, stage, nothingMissing: !hasList && extra.length === 0,
         lines: lines.map((l) => {
           const i = issues[l.id];
-          return i ? { itemId: l.id, ok: false, kind: i.kind || undefined, quantity: i.quantity, reason: i.reason, priority: i.priority, photoDraftKey: i.photos?.draftKey } : { itemId: l.id, ok: true };
+          return i ? { itemId: l.id, ok: false, kind: i.kind || undefined, quantity: i.quantity, reason: i.reason, suspectedCause:i.suspectedCause||undefined, priority: i.priority, photoDraftKey: i.photos?.draftKey } : { itemId: l.id, ok: true };
         }),
         unlisted: extra.map((u) => ({ name: u.name.trim(), quantity: u.quantity, unit: u.unit, kind: u.kind, priority: u.priority, productType: u.productType, reason: u.reason.trim(), photoDraftKey: u.photos?.draftKey })),
       });
@@ -82,20 +83,21 @@ export function ReceiveForm({ dispatchId, version, stage, lines }: { dispatchId:
 
       {hasList && (
         <div className="receive-panel" hidden={mode !== "list"}>
-          <p className="small muted" style={{ margin: 0 }}>Untick anything missing or damaged. Each unticked line becomes one complaint to the factory.</p>
+          <p className="small muted" style={{ margin: 0 }}>Choose missing or damaged for affected items. Each affected line becomes one complaint to the factory.</p>
           <ul className="receive-list">
             {lines.map((l) => {
               const i = issues[l.id];
               return (
                 <li key={l.id} data-issue={i ? true : undefined}>
                   <label className="receive-line">
-                    <input type="checkbox" checked={!i} onChange={(e) => toggle(l, e.target.checked)} />
+                    {!operations&&<input type="checkbox" checked={!i} onChange={(e) => toggle(l, e.target.checked)} />}
                     <span className="receive-name"><strong>{l.name}</strong><span className="small muted">{l.quantity} {l.unit}</span></span>
                     {i ? <WarningCircle size={22} weight="fill" className="receive-bad" aria-label="Problem" /> : <CheckCircle size={22} weight="fill" className="receive-ok" aria-label="Received OK" />}
                   </label>
+                  {operations&&<div className="row" role="group" aria-label={`${l.name} condition`}>{(['ok','missing','damaged'] as const).map(kind=><button type="button" key={kind} aria-pressed={kind==='ok'?!i:i?.kind===kind} onClick={()=>setIssues(x=>{const n={...x};if(kind==='ok')delete n[l.id];else n[l.id]={quantity:l.quantity,reason:'',photos:null,priority:'normal',...x[l.id],kind};return n;})}>{kind==='ok'?'OK':kind==='missing'?'Missing':'Damaged'}</button>)}</div>}
                   {i && (
                     <div className="receive-issue">
-                      <fieldset className="flow-choice">
+                      <fieldset className="flow-choice" hidden={operations}>
                         <legend>What is wrong?</legend>
                         <div className="flow-choice-row">
                           {(["missing", "damaged"] as const).map((k) => (
@@ -108,7 +110,8 @@ export function ReceiveForm({ dispatchId, version, stage, lines }: { dispatchId:
                       <div className="field"><label htmlFor={`r-${l.id}`}>Reason</label>
                         <textarea id={`r-${l.id}`} rows={2} required minLength={3} maxLength={500} value={i.reason} onChange={(e) => patch(l.id, { reason: e.target.value })} placeholder="e.g. corner broken, box opened, not on the truck" /></div>
                       <PriorityChoice name={`pr-${l.id}`} value={i.priority} onChange={(p) => patch(l.id, { priority: p })} />
-                      <FilesField id={`p-${l.id}`} field={{ key: "mnd_photo", label: "Photos (at least one)", accept: "photo", required: true }} onChange={(s) => onPhotos(l.id, s)} />
+                      {(!operations||i.kind==='damaged')&&<FilesField id={`p-${l.id}`} field={{ key: "mnd_photo", label: "Photos (at least one)", accept: "photo", required: true }} onChange={(s) => onPhotos(l.id, s)} />}
+                      {operations&&<label className="field">Suspected cause (optional)<select value={i.suspectedCause??''} onChange={e=>patch(l.id,{suspectedCause:e.target.value})}><option value="">Not known</option>{ROOT_CAUSES.map(c=><option key={c} value={c}>{c.replaceAll('_',' ')}</option>)}</select></label>}
                     </div>
                   )}
                 </li>

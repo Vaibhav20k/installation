@@ -64,7 +64,7 @@ export function DayProgress({ visitId, tasks, canRecord, isEmployee }: { visitId
   const block = useAction(recordDelay, { onSuccess: async (d) => setBlockNote(attachmentNote(await blockDraft.attach("delay_event", (d as { id: string }).id))) });
   return (
     <div className="stack" style={{ gap: 16 }}>
-      <ul className="task-list" id="progress">{tasks.map((t) => <TaskRow key={t.id} t={t} canRecord={canRecord} isEmployee={isEmployee} />)}</ul>
+      {tasks.length > 0 && <ul className="task-list">{tasks.map((t) => <TaskRow key={t.id} t={t} canRecord={canRecord} isEmployee={isEmployee} />)}</ul>}
       {isEmployee && <p className="small muted" style={{ margin: 0 }}>Your supervisor accepts recorded quantities before they count.</p>}
       {canRecord && (
         <details id="blocker" className="blocker">

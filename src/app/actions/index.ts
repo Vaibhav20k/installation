@@ -41,9 +41,8 @@ export async function signInAs(employeeId: string) {
   const actor = await loadActor(await getDb(), employeeId);
   if (!actor) throw new Error("Unknown or inactive employee");
   (await cookies()).set(DEMO_COOKIE, actor.id, { httpOnly: true, sameSite: "lax", path: "/" });
-  // Department staff start on their dispatch steps; managers and administrators on the installation plans; workers on My day.
-  if (actor.jobRole === "department_staff") redirect("/dispatch");
-  redirect(actor.role === "employee" ? "/my-day" : actor.role === "admin" || actor.role === "manager" ? "/installations" : "/");
+  // Everyone opens their own queue; recording controls remain on My day.
+  redirect("/my-tasks");
 }
 
 export async function signOut() {

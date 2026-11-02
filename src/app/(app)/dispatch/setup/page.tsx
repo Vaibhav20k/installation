@@ -1,3 +1,6 @@
+import {DesignationForms} from '@/components/dispatch/PreventiveForms';
+import { OperationsPolicy } from '@/components/settings/OperationsPolicy';
+import { operationsPolicy } from '@/server/services/operations-policy';
 import Link from "next/link";
 import { CaretLeft } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
@@ -12,12 +15,14 @@ export default async function DispatchSetup() {
   const { db, actor } = await session();
   if (actor.role !== "admin") return <Notice tone="warn" title="Not permitted">Dispatch setup is for administrators.</Notice>;
   const s = await flowSetup(db, actor);
+  const policy=await operationsPolicy(db).catch(()=>null);
+  const designations=await db.query<{code:string;name:string}>('select code,name from designation where active order by name');
   const active = (flow: string) => s.versions.find((v) => v.flow === flow && v.active)!;
   return (
     <div className="stack flow-page">
       <Link href="/dispatch" className="small back-link"><CaretLeft size={14} aria-hidden /> Dispatch</Link>
       <PageHeader title="Dispatch setup" subtitle="Who does each step, and the steps themselves. Changes apply to new dispatches and complaints; open ones finish on their own version." />
-      <section className="plate" aria-labelledby="h-roles"><h2 id="h-roles" className="flow-subhead">Department roles</h2><RoleMembers roles={s.roles} people={s.people} /></section>
+      <OperationsPolicy policy={policy}/><DesignationForms people={s.people} designations={designations}/><section className="plate" aria-labelledby="h-roles"><h2 id="h-roles" className="flow-subhead">Department roles</h2><RoleMembers roles={s.roles} people={s.people} /></section>
       {(["dispatch", "complaint"] as const).map((flow) => {
         const a = active(flow);
         return (

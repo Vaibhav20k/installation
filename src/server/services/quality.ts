@@ -91,9 +91,10 @@ export async function createIssue(ctx: Ctx, input: unknown) {
 export async function closeAction(ctx: Ctx, input: unknown) {
   const d = parse(z.object({ issueId: zId, closedOn: zDate, closureEvidence: z.string().min(3).max(500), version: z.number().int().positive() }), input);
   return ctx.db.tx(async (q) => {
-    const i = await one<{ project_id: string; owner_id: string | null; status: string; version: number }>(q, "select project_id, owner_id, status, version from issue where id = $1 for update", [d.issueId], "Issue");
+    const i = await one<{ project_id: string; owner_id: string | null; status: string; version: number;preventive_state:string|null }>(q, "select project_id, owner_id, status, version,preventive_state from issue where id = $1 for update", [d.issueId], "Issue");
     await requireProjectScope(q, ctx.actor, i.project_id);
     if (i.owner_id !== ctx.actor.id) requireRole(ctx.actor, "manager", "closing another owner's action");
+    if(i.preventive_state)throw conflict("Use the preventive action record and separate QA verification to close this project.");
     if (i.status === "closed") throw conflict("This action is already closed.");
     if (i.version !== d.version) throw conflict("Someone else changed this issue. Reload before closing.");
     await q.query("update issue set status = 'closed', closed_on = $2, closure_evidence = $3, version = version + 1 where id = $1", [d.issueId, d.closedOn, d.closureEvidence]);

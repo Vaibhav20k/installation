@@ -70,6 +70,7 @@ export function StageForm({ kind, id, version, stage, cta }: { kind: "dispatch" 
         files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.draftKey])) };
       act.run(kind === "dispatch" ? { dispatchId: id, ...payload } : { complaintId: id, ...payload });
     }}>
+      <p className="small muted">Complete the required details below, then submit to save this step. Your answers determine whether the record moves forward or stays waiting. Opening this page does not change its status.</p>
       {stage.fields.filter((f) => shown(f, values)).map((f) => {
         const fid = `sf-${stage.code}-${f.key}`;
         const req = !!f.required || !!f.requiredWhen;
@@ -100,7 +101,7 @@ export function StageForm({ kind, id, version, stage, cta }: { kind: "dispatch" 
       <button type="submit" className="primary flow-submit" disabled={act.pending || waiting || missing}>
         {act.pending ? "Saving…" : waiting ? "Waiting for uploads…" : cta ?? `Complete: ${stage.label}`}
       </button>
-      <ResultNotice result={act.result} successText="Saved. The next owner has been notified." />
+      <ResultNotice result={act.result} successText="Saved. The record now shows its current step and responsible team." />
     </form>
   );
 }

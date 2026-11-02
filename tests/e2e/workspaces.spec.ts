@@ -45,11 +45,12 @@ test.describe("workspaces on a laptop", () => {
     await expect(rail(page).getByRole("link", { name: /^Complaints/ })).toBeVisible();
     await expect(rail(page).getByRole("link", { name: /^Sites/ })).toHaveCount(0);
 
+    await page.goto("/?overview=1");
     // Tapping a tile swaps the list in place at once: no page reload, the address keeps the choice.
     const marker = await page.evaluate(() => ((window as unknown as { __noReload: number }).__noReload = Math.random()));
     await page.locator("a.pipe-tile", { hasText: "Accounts" }).click();
     await expect(page.locator(".pipe-list-head h3")).toHaveText(/^Accounts/, { timeout: 1000 });
-    await expect(page).toHaveURL(/\?stage=accounts$/);
+    await expect(page).toHaveURL(u => u.pathname === "/" && u.searchParams.get("stage") === "accounts");
     expect(await page.evaluate(() => (window as unknown as { __noReload: number }).__noReload)).toBe(marker);
   });
 });

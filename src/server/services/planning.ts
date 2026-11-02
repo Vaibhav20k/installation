@@ -3,6 +3,8 @@
  * createPlanRevision, submitPlan, approvePlan, returnPlan, cancelPlan (phases 5 and 6).
  */
 import { z } from "zod";
+import { datesBetween, dayDiff, zonedToUtc, localDateOf } from "@/lib/dates";
+import type { OperationsPolicy } from "./operations-policy";
 import type { Queryable } from "../db/client";
 import { audit } from "../audit";
 import { forbidSelfApproval, requireProjectScope, requireRole } from "../auth/permissions";
@@ -107,8 +109,27 @@ export async function updateVisitDates(ctx: Ctx, input: unknown) {
       `update visit set planned_start = $2, planned_end = $3, departure_at = $4, return_at = $5, team_size = coalesce($6, team_size),
          continuity = coalesce($7, continuity), version = version + 1, updated_at = now() where id = $1`,
       [d.visitId, d.plannedStart, d.plannedEnd, d.departureAt ?? null, d.returnAt ?? null, d.teamSize ?? null, d.continuity ?? null]);
-    // Proposed staffing no longer matches the dates; it is withdrawn rather than silently kept.
+    // Operations plans retain their selected team and regenerate daily proposals atomically.
+    // Legacy plans retain the existing withdrawal/rebooking behaviour.
+    const [plan] = await q.query<{ operations_state: string | null; operations_policy: OperationsPolicy; purpose: 'installation' | 'complaint' }>(
+      'select operations_state,operations_policy,purpose from plan where id=$1', [v.plan_id]);
+    const team = plan?.operations_state ? await q.query<{ employee_id: string; role: string }>(
+      "select distinct employee_id,role from reservation where visit_id=$1 and state='proposed'", [v.id]) : [];
+    if (plan?.operations_state && dayDiff(d.plannedStart, d.plannedEnd) > 61)
+      throw validation('Select a date range of at most 62 days.');
     await q.query("update reservation set state = 'cancelled' where visit_id = $1 and state = 'proposed'", [d.visitId]);
+    if (plan?.operations_state) {
+      const minutes = plan.operations_policy[plan.purpose].dailyMinutes;
+      for (const day of datesBetween(d.plannedStart, d.plannedEnd)) {
+        const start = zonedToUtc(day, '09:00', v.timezone);
+        const end = start + minutes * 60000;
+        if (localDateOf(end - 1, v.timezone) !== day)
+          throw validation('Daily planned minutes must fit between 09:00 and midnight.');
+        for (const member of team)
+          await q.query("insert into reservation(visit_id,employee_id,role,span,state,created_by) values($1,$2,$3,tstzrange($4,$5),'proposed',$6)",
+            [v.id, member.employee_id, member.role, iso(start), iso(end), ctx.actor.id]);
+      }
+    }
     await audit(q, { actorId: ctx.actor.id, action: "update_dates", objectType: "visit", objectId: d.visitId, before: { start: v.planned_start, end: v.planned_end }, after: d, correlationId: ctx.correlationId });
   });
 }
@@ -186,8 +207,9 @@ export async function setSkillRequirements(ctx: Ctx, input: unknown) {
 
 async function transitionRevision(ctx: Ctx, planId: string, to: ApprovalState, note?: string) {
   return ctx.db.tx(async (q) => {
-    const plan = await one<{ project_id: string; status: string; baseline_revision_id: string | null }>(q, "select project_id, status, baseline_revision_id from plan where id = $1 for update", [planId], "Plan");
+    const plan = await one<{ project_id: string; status: string; baseline_revision_id: string | null;operations_state:string|null }>(q, "select project_id, status, baseline_revision_id,operations_state from plan where id = $1 for update", [planId], "Plan");
     await requireProjectScope(q, ctx.actor, plan.project_id);
+    if(plan.operations_state)throw conflict("Review this workforce plan from its Site Plan record.");
     if (plan.status !== "active") throw conflict(`This plan is ${plan.status}.`);
     const rev = await latestRevision(q, planId);
     assertApproval(rev.approval_state as ApprovalState, to);
@@ -238,8 +260,9 @@ export async function cancelPlan(ctx: Ctx, input: unknown) {
   const d = parse(z.object({ planId: zId, reason: z.string().min(3).max(300) }), input);
   requireRole(ctx.actor, "manager", "cancelling plans");
   return ctx.db.tx(async (q) => {
-    const plan = await one<{ project_id: string; status: string }>(q, "select project_id, status from plan where id = $1 for update", [d.planId], "Plan");
+    const plan = await one<{ project_id: string; status: string;operations_state:string|null }>(q, "select project_id, status,operations_state from plan where id = $1 for update", [d.planId], "Plan");
     await requireProjectScope(q, ctx.actor, plan.project_id);
+    if(plan.operations_state)throw conflict("Use Site Plan regularization to remove planned days with approval.");
     if (plan.status !== "active") throw conflict(`This plan is already ${plan.status}.`);
     const started = await q.query("select business_id from visit where plan_id = $1 and exec_status in ('in_progress','completed','closed')", [d.planId]);
     if (started.length) throw forbidden("Visits in this plan have started; cancel or transfer remaining scope per visit instead.");

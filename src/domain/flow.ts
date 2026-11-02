@@ -40,6 +40,7 @@ const zStage = z.object({
 
 export const zFlowDefinition = z.object({
   flow: z.enum(["dispatch", "complaint"]),
+  protocol: z.literal('operations_v1').optional(),
   stages: z.array(zStage).min(2).max(30),
   dispatchTypes: z.array(z.object({ code: z.string().regex(/^[A-Z][A-Za-z0-9]{0,5}$/), label: z.string().min(2).max(60), groups: z.array(z.enum(["carcass", "shutters", "countertop", "backsplash", "other"])).min(1) })).max(12).optional(),
   factories: z.array(z.string().min(2).max(60)).max(12).optional(),

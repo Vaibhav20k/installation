@@ -9,6 +9,27 @@ import { requireAdmin } from "../auth/permissions";
 import { validation } from "../errors";
 import { one, parse, zId, type Ctx } from "./context";
 import { loadDefinition, validateDefinition } from "./flow-core";
+import { OPERATIONS_DISPATCH, OPERATIONS_COMPLAINT } from '@/domain/operations-flow';
+import { operationsPolicy } from './operations-policy';
+
+/** Explicit publication preserves pinned legacy records and the original definitions. */
+export async function activateOperations(ctx: Ctx, _input: unknown) {
+  requireAdmin(ctx.actor, 'operations activation');
+  return ctx.db.tx(async q=>{
+    await operationsPolicy(q);
+    await q.query('lock table flow_config in exclusive mode');
+    for (const definition of [OPERATIONS_DISPATCH, OPERATIONS_COMPLAINT]) {
+      await validateDefinition(q,definition);
+      const current = await loadDefinition(q, definition.flow);
+      if (JSON.stringify(current.def) === JSON.stringify(definition)) continue;
+      const [n]=await q.query<{v:number}>('select coalesce(max(version),0)+1 v from flow_config where flow=$1',[definition.flow]);
+      await q.query('update flow_config set active=false where flow=$1',[definition.flow]);
+      await q.query("insert into flow_config(flow,version,definition,active,note,created_by) values($1,$2,$3,true,'Operations process; legacy records retained',$4)",[definition.flow,n!.v,JSON.stringify(definition),ctx.actor.id]);
+      await audit(q,{actorId:ctx.actor.id,action:'publish_operations_flow',objectType:'flow_config',objectId:`${definition.flow}:${n!.v}`,after:{version:n!.v},correlationId:ctx.correlationId});
+    }
+    return {activated:true};
+  });
+}
 
 export async function setRoleMember(ctx: Ctx, input: unknown) {
   const d = parse(z.object({ roleCode: z.string().max(40), employeeId: zId, member: z.boolean() }), input);
@@ -33,6 +54,7 @@ export async function saveFlowDefinition(ctx: Ctx, input: unknown) {
     const def = await validateDefinition(q, raw);
     if (def.flow !== d.flow) throw validation(`This definition is for the ${def.flow} flow.`);
     const cur = await loadDefinition(q, d.flow);
+    if(cur.def.protocol && !def.protocol)throw validation('Operations safeguards cannot be removed from new workflow versions.');
     if (JSON.stringify(cur.def) === JSON.stringify(def)) throw validation("Nothing changed.");
     await q.query("lock table flow_config in exclusive mode");
     const [n] = await q.query<{ v: number }>("select coalesce(max(version), 0) + 1 v from flow_config where flow = $1", [d.flow]);

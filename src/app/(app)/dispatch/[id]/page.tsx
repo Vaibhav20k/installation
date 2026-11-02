@@ -34,6 +34,7 @@ export default async function DispatchDetail({ params }: { params: Promise<{ id:
   return (
     <div className="stack flow-page">
       <Link href="/dispatch" className="small back-link"><CaretLeft size={14} aria-hidden /> Dispatch</Link>
+      <Stepper def={d.def} current={d.stage} status={d.status} history={d.history}/>
       <header className="flow-head">
         <div className="spread"><span className="code-tag">{d.business_id} · {d.order_no} · {d.factory}</span>
           {d.status === "open" ? <span className="flow-stage">{s?.label ?? d.stage}</span> : <Badge state={d.status} />}</div>
@@ -45,7 +46,7 @@ export default async function DispatchDetail({ params }: { params: Promise<{ id:
           {d.hold_until && <span className="flow-tag" data-tone="bad">Site not ready until {shortDate(d.hold_until)}: {d.hold_reason}</span>}
         </div>}
       </header>
-      <Stepper def={d.def} current={d.stage} status={d.status} />
+      {d.def.protocol ? <section className="notice" aria-label="Dispatch gates"><strong>Dispatch {d.sequence_no}</strong><p>{d.site_ready?'Site ready':'Waiting for Installation Manager: site readiness'} · {d.payment_state==='received'?'Payment confirmed':'Waiting for Finance: payment confirmation'}</p></section> : <p className="small muted">Legacy workflow · historical rules retained</p>}
       {open.length > 0 && (
         <a href="#complaints" className="complaint-banner" role="alert">
           <WarningCircle size={22} weight="fill" aria-hidden />
@@ -57,9 +58,10 @@ export default async function DispatchDetail({ params }: { params: Promise<{ id:
 
       {d.status === "open" && s && (
         <section className="plate flow-now" aria-labelledby="h-now">
+          <p className="section-label">{d.canAct ? "Your step to review" : "With another team"} · {owner}</p>
           <div className="plate-head"><h2 id="h-now" className="flow-now-title">{s.label}</h2><span className="small muted flow-now-age">{d.days_in_stage ? `${d.days_in_stage} day${d.days_in_stage === 1 ? "" : "s"} in this step` : "since today"}</span></div>
           {!d.canAct ? <p className="muted" style={{ margin: 0 }}>Waiting for {owner}.</p>
-            : s.handler === "receive_mnd" ? <ReceiveForm key={d.version} dispatchId={d.id} version={d.version} stage={d.stage} lines={d.items.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit }))} />
+            : s.handler === "receive_mnd" ? <ReceiveForm operations={!!d.def.protocol} key={d.version} dispatchId={d.id} version={d.version} stage={d.stage} lines={d.items.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit }))} />
             : <StageForm key={`${d.stage}-${d.version}`} kind="dispatch" id={d.id} version={d.version} stage={s} cta={d.hold_until && s.code === "site_readiness" ? "Update site readiness" : undefined} />}
           {d.canBack && backTargets.length > 0 && <BackForm kind="dispatch" id={d.id} version={d.version} stage={d.stage} targets={backTargets} />}
         </section>

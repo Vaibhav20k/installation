@@ -1,3 +1,4 @@
+import {redirect} from 'next/navigation';
 import Link from "next/link";
 import { ArrowRight, CaretRight, FlagCheckered, Plus, ShieldWarning, Stamp, UsersThree } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
@@ -28,6 +29,8 @@ const s = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const { db, actor } = await session();
+  // Keep the original overview and its filter deep links available.
+  if (Object.keys(sp).length === 0) redirect('/my-tasks');
   const now = Date.now();
   // The Factory side has its own home: what to send, and the replacements to make (docs/plans/workspaces-design.md).
   if ((await workspaceOf(db, actor)).current === "factory") return <FactoryHome db={db} actor={actor} now={now} sp={sp} />;

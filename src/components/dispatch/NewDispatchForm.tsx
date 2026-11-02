@@ -12,10 +12,10 @@ import { useAction } from "@/components/ui/useAction";
 import { ResultNotice } from "@/components/ui/ResultNotice";
 
 interface LineOpt { id: string; business_id: string; name: string; unit: string; quantity: string; dispatch_group: string | null; left: string }
-interface OrderOpt { id: string; business_id: string; customer: string; project: string; city: string; lines: LineOpt[] }
+interface OrderOpt { id: string; business_id: string; customer: string; project: string; city: string; lines: LineOpt[]; manager_id?:string|null;manager_name?:string|null }
 interface TypeOpt { code: string; label: string; groups: string[] }
 
-export function NewDispatchForm({ orders, types, factories, initialOrder }: { orders: OrderOpt[]; types: TypeOpt[]; factories: string[]; initialOrder?: string }) {
+export function NewDispatchForm({ orders, types, factories, initialOrder,operations=false }: { operations?:boolean; orders: OrderOpt[]; types: TypeOpt[]; factories: string[]; initialOrder?: string }) {
   const router = useRouter();
   const act = useAction(createDispatch, { refresh: false, onSuccess: (d) => router.push(`/dispatch/${(d as { dispatchId: string }).dispatchId}`) });
   const [orderId, setOrderId] = useState(initialOrder && orders.some((o) => o.id === initialOrder) ? initialOrder : orders[0]?.id ?? "");
@@ -38,11 +38,12 @@ export function NewDispatchForm({ orders, types, factories, initialOrder }: { or
   return (
     <form className="form flow-form" onSubmit={(e) => {
       e.preventDefault();
-      if (noList) act.run({ orderId, types: picked, factory, items: [], withoutList: true, note: note.trim() || undefined });
-      else act.run({ orderId, types: picked, factory, items: chosen.map((l) => ({ componentId: l.id, quantity: qty[l.id] ?? l.left })).filter((i) => Number(i.quantity) > 0) });
+      if (noList) act.run({ installationManagerId:order?.manager_id??undefined, orderId, types: picked, factory, items: [], withoutList: true, note: note.trim() || undefined });
+      else act.run({ installationManagerId:order?.manager_id??undefined, orderId, types: picked, factory, items: chosen.map((l) => ({ componentId: l.id, quantity: qty[l.id] ?? l.left })).filter((i) => Number(i.quantity) > 0) });
     }}>
       <div className="field"><label htmlFor="nd-o">Order</label>
         <select id="nd-o" value={orderId} onChange={(e) => reset(e.target.value)}>{orders.map((o) => <option key={o.id} value={o.id}>{o.business_id} · {o.customer} · {o.project}</option>)}</select></div>
+      <div className="field"><label htmlFor="nd-im">Installation Manager assigned to this site</label><select id="nd-im" value={order?.manager_id??''} onChange={()=>{}}><option value={order?.manager_id??''}>{order?.manager_name??'Assign an Installation Manager in the site record first'}</option></select></div>
       <fieldset className="flow-choice">
         <legend>Dispatch type (one or more)</legend>
         <div className="flow-choice-row wrap">
@@ -53,7 +54,7 @@ export function NewDispatchForm({ orders, types, factories, initialOrder }: { or
         {clash && <p className="notice" data-tone="warn" role="status" style={{ margin: "8px 0 0" }}>D3 already covers countertop and backsplash; choose D3 or its parts (D3a, D3b), not both.</p>}
       </fieldset>
       {factories.length > 1 && <div className="field"><label htmlFor="nd-f">Factory</label><select id="nd-f" value={factory} onChange={(e) => setFactory(e.target.value)}>{factories.map((f) => <option key={f}>{f}</option>)}</select></div>}
-      <label className="nd-nolist" data-on={noList || undefined}>
+      <label hidden={operations} className="nd-nolist" data-on={noList || undefined}>
         <input type="checkbox" checked={noList} onChange={(e) => setNoList(e.target.checked)} />
         <span><strong>Item list not ready yet</strong><span className="small muted">Send now; the Installation Manager reports anything missing or damaged at site.</span></span>
       </label>

@@ -16,7 +16,7 @@ export default async function NewDispatch({ searchParams }: { searchParams: Prom
     <div className="stack flow-page">
       <Link href="/dispatch" className="small back-link"><CaretLeft size={14} aria-hidden /> Dispatch</Link>
       <PageHeader title="Ready for dispatch" subtitle="Choose the order and what is going on this truck. Each dispatch runs its own installation cycle." />
-      <section className="plate"><NewDispatchForm orders={data.orders} types={data.types} factories={data.factories} initialOrder={sp.order} /></section>
+      <section className="plate"><NewDispatchForm operations={data.operations} orders={data.orders} types={data.types} factories={data.factories} initialOrder={sp.order} /></section>
     </div>
   );
 }

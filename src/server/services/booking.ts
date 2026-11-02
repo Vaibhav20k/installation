@@ -239,6 +239,8 @@ export async function releaseReservation(ctx: Ctx, input: unknown) {
     const r = await one<{ visit_id: string; state: string; project_id: string; exec_status: string; outstation: boolean; upper: number }>(q,
       `select r.visit_id, r.state, v.project_id, v.exec_status, v.outstation, upper(r.span) "upper" from reservation r join visit v on v.id = r.visit_id where r.id = $1 for update of r`, [d.reservationId], "Reservation");
     await requireProjectScope(q, ctx.actor, r.project_id);
+    const [ops]=await q.query("select 1 from plan p join visit v on v.plan_id=p.id where v.id=$1 and p.operations_state is not null",[r.visit_id]);
+    if(ops)throw conflict('Use Site Plan regularization for approved day exclusions.');
     if (!["proposed", "held", "confirmed"].includes(r.state)) throw conflict(`This reservation is already ${r.state}.`);
     if (r.outstation && r.exec_status === "in_progress" && r.upper > ctx.now) throw forbidden("An outstation employee is released only after return or an explicit visit schedule revision.");
     await q.query("update reservation set state = $2, version = version + 1 where id = $1", [d.reservationId, r.state === "proposed" ? "cancelled" : "released"]);

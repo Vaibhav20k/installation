@@ -23,10 +23,10 @@ describe("visible groups and tabs per person", () => {
   });
   it("admins see every group and every tab", () => {
     expect(shape(ADMIN)).toEqual([
-      ["home", ["/"]],
+      ["home", ["/my-tasks", "/?overview=1"]],
       ["sites", ["/installations", "/planning", "/projects"]],
       ["dispatch", ["/dispatch"]],
-      ["work", ["/my-day", "/my-tasks", "/attendance"]],
+      ["work", ["/my-day", "/attendance"]],
       ["inbox", ["/approvals", "/requests"]],
       ["money", ["/timesheets", "/expenses"]],
       ["people", ["/people", "/skill-cards"]],
@@ -35,9 +35,9 @@ describe("visible groups and tabs per person", () => {
   });
   it("crew keep Projects but not the staff-only pages, Dispatch, Approvals or Skill cards", () => {
     expect(shape(CREW)).toEqual([
-      ["home", ["/"]],
+      ["home", ["/my-tasks", "/?overview=1"]],
       ["sites", ["/projects"]],
-      ["work", ["/my-day", "/my-tasks", "/attendance"]],
+      ["work", ["/my-day", "/attendance"]],
       ["inbox", ["/requests"]],
       ["money", ["/timesheets", "/expenses"]],
       ["people", ["/people"]],
@@ -93,10 +93,10 @@ describe("badges and the phone bar", () => {
   });
   it("gives each kind of person four slots from their own groups", () => {
     const slots = (v: Viewer) => phoneSlots(v, visibleGroups(v)).map((g) => g.id);
-    expect(slots(IM)).toEqual(["sites", "dispatch", "inbox", "home"]);
-    expect(slots(ADMIN)).toEqual(["sites", "dispatch", "inbox", "home"]);
-    expect(slots(SUPERVISOR)).toEqual(["sites", "inbox", "home", "work"]);
-    expect(slots(CREW)).toEqual(["work", "money", "inbox", "people"]);
+    expect(slots(IM)).toEqual(["home", "sites", "dispatch", "inbox"]);
+    expect(slots(ADMIN)).toEqual(["home", "sites", "dispatch", "inbox"]);
+    expect(slots(SUPERVISOR)).toEqual(["home", "sites", "inbox", "work"]);
+    expect(slots(CREW)).toEqual(["home", "work", "money", "inbox"]);
     expect(slots(DEPT)).toEqual(["dispatch", "inbox", "work", "home"]);
   });
 });

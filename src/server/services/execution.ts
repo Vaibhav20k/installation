@@ -21,6 +21,8 @@ export async function transitionVisit(ctx: Ctx, input: unknown) {
   requireRole(ctx.actor, "supervisor", "visit status changes");
   return ctx.db.tx(async (q) => {
     const v = await loadVisit(q, d.visitId, true);
+    const [ops]=await q.query("select 1 from plan where id=$1 and operations_state is not null",[v.plan_id]);
+    if(ops)throw conflict('Use the Site Plan record to complete or regularize this workforce assignment.');
     await requireProjectScope(q, ctx.actor, v.project_id);
     assertExecution(v.exec_status as ExecutionState, d.to);
     const today = localDateOf(ctx.now, v.timezone);

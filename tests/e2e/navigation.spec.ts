@@ -12,8 +12,8 @@ async function signIn(page: Page, businessId: string) {
 
 const ADMIN = "EMP-004", IM = "EMP-001", CREW = "EMP-016";
 const OLD_URLS: Array<[string, string, string | null]> = [
-  ["/", "Home", null], ["/installations", "Sites", "Installations"], ["/planning", "Sites", "Planning"], ["/projects", "Sites", "Projects"],
-  ["/dispatch", "Dispatch", null], ["/my-day", "My work", "My day"], ["/my-tasks", "My work", "My tasks"], ["/attendance", "My work", "Attendance"],
+  ["/", "Home", "My tasks"], ["/?overview=1", "Home", "Overview"], ["/installations", "Sites", "Installations"], ["/planning", "Sites", "Planning"], ["/projects", "Sites", "Projects"],
+  ["/dispatch", "Dispatch", null], ["/my-day", "My work", "My day"], ["/my-tasks", "Home", "My tasks"], ["/attendance", "My work", "Attendance"],
   ["/approvals", "Inbox", "To approve"], ["/requests", "Inbox", "My requests"], ["/timesheets", "Time & money", "Timesheets"], ["/expenses", "Time & money", "Expenses"],
   ["/people", "People", "People & Skills"], ["/skill-cards", "People", "Skill cards"], ["/reports", "Reports", null],
 ];
@@ -50,7 +50,7 @@ test.describe("desktop", () => {
 
 test.describe("phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
-  for (const [who, id, slots] of [["installation manager", IM, ["Sites", "Dispatch", "Inbox", "Home"]], ["crew", CREW, ["Today", "Time", "Inbox", "People"]]] as const) {
+  for (const [who, id, slots] of [["installation manager", IM, ["Home", "Sites", "Dispatch", "Inbox"]], ["crew", CREW, ["Home", "Today", "Time", "Inbox"]]] as const) {
     test(`the ${who} gets four groups plus More, and no page scrolls sideways`, async ({ page }) => {
       await signIn(page, id);
       const bar = page.getByRole("navigation", { name: "Primary" });
@@ -75,6 +75,8 @@ test.describe("phone", () => {
       await signIn(page, id);
       for (const url of urls) {
         await page.goto(url);
+        if (url === "/") await page.waitForURL("**/my-tasks");
+        await expect(page.locator("#main h1").first()).toBeVisible();
         await expect(page.getByText("This page could not load"), url).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), url).toBe(true);
       }

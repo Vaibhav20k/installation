@@ -3,6 +3,7 @@
  * Site presence controls. Workers check in and out at a booked site (the server stamps the time; a repeated
  * tap returns the same record). Supervisors correct sessions or add a missed one, always with a reason.
  */
+import { capturePunchLocation } from "@/lib/punch-location";
 import { useState } from "react";
 import { MapPin, SignIn, SignOut } from "@phosphor-icons/react";
 import { addSitePresence, correctSitePresence, siteCheckIn, siteCheckOut } from "@/app/actions";
@@ -17,29 +18,31 @@ export function SiteCheck({ sites, open, stale, recent }: {
   sites: CheckSite[]; open: OpenSession | null; stale: boolean;
   recent: Array<{ id: string; visit: string; check_in_at: number; check_out_at: number | null; missed_checkout: boolean; timezone: string }>;
 }) {
+  const [locating,setLocating]=useState(false); const [locationError,setLocationError]=useState('');
+  const punch=async (out:boolean)=>{setLocating(true);setLocationError('');try{const location=await capturePunchLocation();if(out&&open)await cout.run({presenceId:open.id,location});else await cin.run({visitId,location});}catch(e){setLocationError((e as Error).message);}finally{setLocating(false);}};
   const cin = useAction(siteCheckIn);
   const cout = useAction(siteCheckOut);
   const [visitId, setVisitId] = useState(sites[0]?.visit_id ?? "");
   // A session left open from an earlier day is never closed with "now": that would count the whole night.
   const current = open && !stale ? open : null;
   return (
-    <div className="site-check">
+    <div className="site-check">{locationError&&<p role="alert" className="notice">{locationError}</p>}{locating&&<p role="status">Capturing location…</p>}
       {open && stale && <p className="notice" data-tone="warn" role="status" style={{ margin: 0 }}>You checked in at {open.visit} on {formatDateTime(Number(open.check_in_at), open.timezone)} and did not check out. That session is not counted until your supervisor enters the real check-out time. You can check in again today.</p>}
       {current ? (
         <>
           <p style={{ margin: 0 }}><strong>Checked in at {current.visit}</strong> · {current.project}<span className="small muted" style={{ display: "block" }}>Since {formatDateTime(Number(current.check_in_at), current.timezone)}</span></p>
-          <button type="button" className="primary big" disabled={cout.pending} aria-busy={cout.pending} onClick={() => cout.run({ presenceId: current.id })}><SignOut size={20} aria-hidden /> {cout.pending ? "Saving…" : "Site check-out"}</button>
+          <button type="button" className="primary big" disabled={cout.pending||locating} aria-busy={cout.pending} onClick={() => punch(true)}><SignOut size={20} aria-hidden /> {cout.pending ? "Saving…" : "Site check-out"}</button>
         </>
       ) : sites.length === 0 ? (
         <p className="muted" style={{ margin: 0 }}>You are not booked on a site today, so there is nowhere to check in.</p>
       ) : (
-        <form className="stack" style={{ gap: 10 }} onSubmit={(e) => { e.preventDefault(); cin.run({ visitId }); }}>
+        <form className="stack" style={{ gap: 10 }} onSubmit={(e) => { e.preventDefault(); void punch(false); }}>
           {sites.length > 1 ? (
             <div className="field"><label htmlFor="sc-site">Site</label>
               <select id="sc-site" value={visitId} onChange={(e) => setVisitId(e.target.value)}>{sites.map((s) => <option key={s.visit_id} value={s.visit_id}>{s.visit} · {s.project}</option>)}</select>
             </div>
           ) : <p style={{ margin: 0, display: "flex", gap: 6, alignItems: "center" }}><MapPin size={16} aria-hidden /> {sites[0]!.visit} · {sites[0]!.project}</p>}
-          <button type="submit" className="primary big" disabled={cin.pending || !visitId} aria-busy={cin.pending}><SignIn size={20} aria-hidden /> {cin.pending ? "Saving…" : "Site check-in"}</button>
+          <button type="submit" className="primary big" disabled={cin.pending || locating || !visitId} aria-busy={cin.pending}><SignIn size={20} aria-hidden /> {cin.pending ? "Saving…" : "Site check-in"}</button>
         </form>
       )}
       <ResultNotice result={cin.result} successText={cin.result?.ok && (cin.result.data as { already: boolean }).already ? "You were already checked in here." : "Checked in at the site."} />

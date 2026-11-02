@@ -180,7 +180,7 @@ export function AttendancePanel({ shift, serverNow, visitLabel, employeeFirstNam
       <div className="shift-primary">
         {!shift?.open ? (camera ? (
           <ClockInCamera label={shift ? "Clock in again (same shift)" : "Clock in"} onCancel={() => setCamera(false)}
-            onClockIn={async (photoDraftKey) => { const r = await clockIn({ photoDraftKey }); if (r.ok) { setCamera(false); setClockedIn(true); router.refresh(); } setClockErr(r.ok ? null : r.message); return r.ok; }} />
+            onClockIn={async (photoDraftKey) => { const r = await clockIn({ photoDraftKey }); if (r.ok) { setCamera(false); setClockedIn(true); window.dispatchEvent(new Event("im-data-changed")); if (!r.revalidatedPaths?.includes("/my-day")) router.refresh(); } setClockErr(r.ok ? null : r.message); return r.ok; }} />
         ) : (
           <button type="button" className="primary clock-btn" onClick={() => { setClockErr(null); setCamera(true); }}>
             <SignIn size={20} weight="bold" aria-hidden /> {shift ? "Clock in again (same shift)" : "Clock in"}

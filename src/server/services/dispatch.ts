@@ -1,3 +1,6 @@
+import { ROOT_CAUSES } from '@/domain/operations-flow';
+import { operationsDispatchStep } from './operations-dispatch';
+import { notifyRoles, operationsPolicy } from './operations-policy';
 /**
  * Dispatch to installation (one cycle per dispatch). The factory picks the dispatch types and the BOM lines it
  * carries; each later stage is completed by its owner role from the flow definition. "Not ready" holds the site
@@ -31,14 +34,17 @@ async function projectTz(q: Queryable, projectId: string) {
 
 /** Inserts a dispatch at the stage after the creation step, writes its history and tells the next owner. */
 export async function insertDispatch(q: Queryable, ctx: Ctx, def: FlowDefinition, version: number, d: {
-  orderId: string; projectId: string; types: string[]; factory: string; replacementFor: string | null; items: Array<{ componentId: string; quantity: string }>; note?: string; withoutList?: boolean;
+  orderId: string; projectId: string; types: string[]; factory: string; replacementFor: string | null; items: Array<{ componentId: string; quantity: string }>; note?: string; withoutList?: boolean; installationManagerId?: string;
 }) {
   const first = def.stages[0]!;
+  await q.query("select id from sales_order where id=$1 for update",[d.orderId]);
+  const [seq] = await q.query<{n:number}>("select coalesce(max(sequence_no),0)+1 n from dispatch where order_id=$1",[d.orderId]);
   const next = stageOf(def, first.next!)!;
   const [r] = await q.query<{ id: string; business_id: string }>(
     `insert into dispatch(business_id, order_id, project_id, types, factory, replacement_for, stage, stage_entered_at, config_version, created_by)
      values ('DSP-' || lpad(nextval('dispatch_number')::text, 4, '0'), $1,$2,$3,$4,$5,$6,$7,$8,$9) returning id, business_id`,
     [d.orderId, d.projectId, d.types, d.factory, d.replacementFor, next.code, new Date(ctx.now).toISOString(), version, ctx.actor.id]);
+  await q.query("update dispatch set sequence_no=$2,installation_manager_id=$3 where id=$1",[r!.id,seq!.n,d.installationManagerId??null]);
   for (const it of d.items) await q.query("insert into dispatch_item(dispatch_id, component_id, quantity) values ($1,$2,$3)", [r!.id, it.componentId, it.quantity]);
   const hid = await writeHistory(q, { type: "dispatch", id: r!.id, from: first.code, to: next.code, kind: "create", data: { types: d.types, factory: d.factory, lines: d.items.length, note: d.note ?? null, replacement_for: d.replacementFor, ...(d.withoutList ? { without_list: true } : {}) }, actorId: ctx.actor.id, at: ctx.now });
   await audit(q, { actorId: ctx.actor.id, action: "create_dispatch", objectType: "dispatch", objectId: r!.id, after: d, correlationId: ctx.correlationId });
@@ -52,7 +58,7 @@ export async function createDispatch(ctx: Ctx, input: unknown) {
     orderId: zId, types: z.array(z.string().max(8)).min(1).max(6), factory: z.string().trim().min(2).max(60),
     items: z.array(z.object({ componentId: zId, quantity: zQty })).max(200).default([]), note: z.string().trim().max(500).optional(),
     // The factory may send before adding the item list (owner decision, 28 Oct 2026), but only by saying so.
-    withoutList: z.boolean().optional(),
+    withoutList: z.boolean().optional(), installationManagerId: zId.optional(),
   }), input);
   return ctx.db.tx(async (q) => {
     const { def, version } = await loadDefinition(q, "dispatch");
@@ -61,6 +67,11 @@ export async function createDispatch(ctx: Ctx, input: unknown) {
     const o = await one<{ project_id: string; status: string; business_id: string }>(q, "select project_id, status, business_id from sales_order where id = $1", [d.orderId], "Order");
     if (o.status === "cancelled" || o.status === "closed") throw conflict(`Order ${o.business_id} is ${o.status}.`);
     await requireStageOwner(q, ctx.actor, first, o.project_id);
+    if(def.protocol){
+      if(d.withoutList)throw validation("A packing list is required for the new operations flow. Legacy no-list dispatches remain available in their original records.");
+      const [im]=await q.query("select 1 from project p join employee e on e.id=p.manager_id join flow_role_member m on m.employee_id=e.id and m.role_code='installation_manager' where p.id=$1 and e.id=$2 and e.active",[o.project_id,d.installationManagerId??null]);
+      if(!im)throw validation("Select the active Installation Manager assigned to this site.");
+    }
     const types = [...new Set(d.types)];
     const { groups, problems } = groupsFor(def, types);
     if (def.factories?.length && !def.factories.includes(d.factory)) problems.push(`Factory must be one of: ${def.factories.join(", ")}.`);
@@ -83,7 +94,7 @@ export async function createDispatch(ctx: Ctx, input: unknown) {
       else if (Dec.of(it.quantity).cmp(left) > 0) problems.push(`${c.name}: only ${left.toString()} left to dispatch on this order.`);
     }
     if (problems.length) throw validation("This dispatch cannot be created yet.", problems);
-    return insertDispatch(q, ctx, def, version, { orderId: d.orderId, projectId: o.project_id, types, factory: d.factory, replacementFor: null, items: d.items, note: d.note, withoutList: !!d.withoutList });
+    return insertDispatch(q, ctx, def, version, { orderId: d.orderId, projectId: o.project_id, types, factory: d.factory, replacementFor: null, items: d.items, note: d.note, withoutList: !!d.withoutList, installationManagerId:d.installationManagerId });
   });
 }
 
@@ -105,13 +116,19 @@ export async function advanceDispatch(ctx: Ctx, input: unknown) {
     await requireStageOwner(q, ctx.actor, s, row.project_id);
     const p = await prepareStage(q, ctx.actor, s, d.values, d.files, d.reason);
     const tz = await projectTz(q, row.project_id);
+    if(def.protocol)await operationsDispatchStep(q,ctx,row,s.code,p.data);
+    if(def.protocol && s.code==='payment_check' && p.move.kind==='hold'){
+      await q.query("update dispatch set version=version+1 where id=$1",[row.id]);
+      await recordStage(q,ctx,'dispatch',row,p,'hold',row.stage);
+      return {held:true};
+    }
     if (p.move.kind === "hold") {
       const until = p.data.expected_date;
       if (!until) throw validation(`${s.label}: an expected date is required.`);
       if (until <= localDateOf(ctx.now, tz)) throw validation("The expected ready date must be after today.");
       await q.query("update dispatch set hold_reason = $2, hold_until = $3, version = version + 1, updated_at = now() where id = $1", [row.id, p.data.reason ?? "Not ready", until]);
       await recordStage(q, ctx, "dispatch", row, p, "hold", row.stage);
-      await scheduleReminder(q, "dispatch", row.id, "site_ready_check", until, s.remindDaysBefore ?? 1, tz, ctx.now);
+      await scheduleReminder(q, "dispatch", row.id, "site_ready_check", until, def.protocol ? (await operationsPolicy(q)).readinessReminderDays : s.remindDaysBefore ?? 1, tz, ctx.now);
       return { held: true, until };
     }
     const to = stageOf(def, p.move.to)!;
@@ -159,6 +176,7 @@ export async function requireBackRight(q: Queryable, ctx: Ctx, s: StageSpec, pro
 }
 
 const zLine = z.object({
+  suspectedCause:z.enum(ROOT_CAUSES).optional(),
   itemId: zId, ok: z.boolean(), kind: z.enum(["missing", "damaged"]).optional(), quantity: zQty.optional(),
   reason: z.string().trim().max(500).optional(), photoDraftKey: z.string().uuid().optional(),
   priority: z.enum(PRIORITY_CODES, { message: "Priority must be Normal, High or Urgent" }).default("normal"),
@@ -211,7 +229,7 @@ export async function receiveDispatch(ctx: Ctx, input: unknown) {
       else if (Dec.of(l.quantity).cmp(it.quantity) > 0) problems.push(`${it.name}: at most ${it.quantity} was on this dispatch.`);
       if (!l.reason || l.reason.length < 3) problems.push(`${it.name}: add a reason.`);
       const ph = await readyFiles(q, ctx.actor.id, l.photoDraftKey, "photo");
-      if (!ph.length) problems.push(`${it.name}: add at least one photo that has finished uploading.`);
+      if (!ph.length && (!def.protocol || l.kind === "damaged")) problems.push(`${it.name}: add at least one photo that has finished uploading.`);
       photos.set(it.id, ph);
     }
     const unlistedPhotos = await checkUnlisted(q, ctx, d.unlisted, problems);
@@ -225,11 +243,17 @@ export async function receiveDispatch(ctx: Ctx, input: unknown) {
       const l = given.get(it.id)!;
       await q.query("update dispatch_item set received_ok = $2 where id = $1", [it.id, l.ok]);
       if (l.ok) continue;
-      const c = await openComplaint(q, ctx, row, it, { kind: l.kind!, quantity: l.quantity!, reason: l.reason!, priority: l.priority }, photos.get(it.id)!);
+      const c = await openComplaint(q, ctx, row, it, { kind: l.kind!, quantity: l.quantity!, reason: l.reason!, priority: l.priority, suspectedCause:l.suspectedCause }, photos.get(it.id)!);
       created.push({ ...c, itemId: it.id });
     }
     // Only the replacement's own line settles its complaint; an unlisted item on the same truck is a new problem.
-    if (row.replacement_for) await settleReplacement(q, ctx, row, created);
+    if (row.replacement_for) {
+      if(def.protocol){
+        await q.query("update complaint set received_at=$2,superseded_by=$3,version=version+1 where id=$1",[row.replacement_for,new Date(ctx.now).toISOString(),created[0]?.id ?? null]);
+        await writeHistory(q,{type:'complaint',id:row.replacement_for,from:'awaiting_replacement',to:'awaiting_replacement',kind:'forward',data:{milestone:'Received',replacement:row.business_id},actorId:ctx.actor.id,at:ctx.now});
+        await audit(q,{actorId:ctx.actor.id,action:'complaint_received',objectType:'complaint',objectId:row.replacement_for,correlationId:ctx.correlationId});
+      }else await settleReplacement(q, ctx, row, created);
+    }
     const unlisted = await addUnlisted(q, ctx, row, d.unlisted, unlistedPhotos);
     const all = [...created, ...unlisted];
     const to = stageOf(def, s.next!)!;
@@ -301,7 +325,7 @@ async function addUnlisted(q: Queryable, ctx: Ctx, row: DispatchRow, list: Unlis
  * normal there).
  */
 export async function openComplaint(q: Queryable, ctx: Ctx, d: { id: string; business_id: string; order_id: string; project_id: string },
-  it: { id: string; component_id: string; name: string }, l: { kind: "missing" | "damaged"; quantity: string; reason: string; priority?: Priority }, photos: string[], extra: Record<string, unknown> = {}) {
+  it: { id: string; component_id: string; name: string }, l: { kind: "missing" | "damaged"; quantity: string; reason: string; priority?: Priority; suspectedCause?:string }, photos: string[], extra: Record<string, unknown> = {}) {
   const cdef = await loadDefinition(q, "complaint");
   const first = cdef.def.stages[0]!;
   const priority = l.priority ?? "normal";
@@ -309,11 +333,14 @@ export async function openComplaint(q: Queryable, ctx: Ctx, d: { id: string; bus
     `insert into complaint(business_id, dispatch_id, dispatch_item_id, order_id, project_id, component_id, kind, quantity, reason, stage, stage_entered_at, config_version, created_by, priority)
      values ('MND-' || lpad(nextval('complaint_number')::text, 4, '0'), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id, business_id`,
     [d.id, it.id, d.order_id, d.project_id, it.component_id, l.kind, l.quantity, l.reason, first.code, new Date(ctx.now).toISOString(), cdef.version, ctx.actor.id, priority]);
+  await q.query("update complaint set suspected_cause=$2 where id=$1",[c!.id,l.suspectedCause??null]);
   const hid = await writeHistory(q, { type: "complaint", id: c!.id, from: null, to: first.code, kind: "create", data: { kind: l.kind, quantity: l.quantity, item: it.name, dispatch: d.business_id, photos: photos.length, priority, ...extra }, reason: l.reason, actorId: ctx.actor.id, at: ctx.now });
   await linkFiles(q, photos, hid, "flow.mnd_photo", ctx.actor.id);
   const urgency = priority === "normal" ? "" : `${priorityLabel(priority)} priority. `;
   await notifyStage(q, { type: "complaint", id: c!.id, businessId: c!.business_id, projectId: d.project_id, stage: first, historyId: hid, at: ctx.now,
     detail: `${urgency}${l.kind === "missing" ? "Missing" : "Damaged"}: ${l.quantity} × ${it.name}${extra.unlisted ? " (not on the factory list)" : ""} on ${d.business_id}.` });
+  await audit(q,{actorId:ctx.actor.id,action:'raise_complaint',objectType:'complaint',objectId:c!.id,after:{kind:l.kind,dispatch:d.id},correlationId:ctx.correlationId});
+  await notifyRoles(q,['installation_head'],d.project_id,`${c!.business_id}: MND complaint raised`,l.reason,`/dispatch/complaints/${c!.id}`,`raised:${c!.id}`);
   return c!;
 }
 

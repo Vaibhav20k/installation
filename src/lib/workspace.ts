@@ -10,7 +10,7 @@ export const WORKSPACE_COOKIE = "im_workspace";
 export const WORKSPACE_LABEL: Record<Workspace, string> = { installation: "Installation", factory: "Factory" };
 
 /** Department roles that work in the factory or its office (every flow role except the Installation Manager). */
-const FACTORY_ROLES = ["factory_dispatch", "accounts", "qc", "planning", "management", "store", "purchase", "production", "packaging"];
+const FACTORY_ROLES = ["factory", "dispatch_department", "finance", "qa", "founders_office", "owners", "factory_dispatch", "accounts", "qc", "planning", "management", "store", "purchase", "production", "packaging"];
 
 export interface WsPerson { role: string; flowRoles: string[] }
 

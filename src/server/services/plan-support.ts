@@ -51,8 +51,9 @@ export async function latestRevision(q: Queryable, planId: string): Promise<Revi
  * a new draft revision (with a change reason) is created instead, which triggers reapproval.
  */
 export async function ensureDraftRevision(q: Queryable, ctx: Ctx, planId: string, changeReason?: string) {
-  const [plan] = await q.query<{ status: string }>("select status from plan where id = $1 for update", [planId]);
+  const [plan] = await q.query<{ status: string;operations_state:string|null }>("select status,operations_state from plan where id = $1 for update", [planId]);
   if (!plan) throw validation("Plan not found");
+  if(plan.operations_state && plan.operations_state!=='draft')throw conflict("Use the Site Plan record for approved workforce changes.");
   if (plan.status !== "active") throw conflict(`This plan is ${plan.status}; it cannot be edited.`);
   const latest = await latestRevision(q, planId);
   if (latest.approval_state === "draft") return latest;

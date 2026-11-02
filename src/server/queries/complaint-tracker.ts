@@ -1,3 +1,4 @@
+import {effectiveStage} from '../services/operations-policy';
 /**
  * The Complaints view: every complaint the actor may see, in the five plain phases of complaint-phases.ts.
  * Read-only. Scope is the same SQL filter as the other dispatch lists (flowFilter), so an Installation Manager
@@ -24,7 +25,7 @@ export interface TrackedComplaint {
    * PRIORITY HOOK: complaint.priority ('normal' | 'high' | 'urgent', migration 018). Read only when the column
    * exists, so this works before and after that migration; null means "not set / column not there yet".
    */
-  priority: ComplaintPriority | null;
+  priority: ComplaintPriority | null; operations?:boolean;
 }
 
 async function hasPriorityColumn(q: Queryable) {
@@ -47,19 +48,19 @@ export async function complaintTracker(q: Queryable, actor: Actor, now: number):
      join component cm on cm.id = x.component_id join dispatch d on d.id = x.dispatch_id
      where (x.status = 'open' or x.closed_at >= $${f.params.length + 1}) and ${f.sql}
      order by x.created_at limit 500`, [...f.params, since]);
-  const out = rows.map((r): TrackedComplaint => {
-    const s = stageFor(defs, "complaint", r.config_version, r.stage);
+  const out = await Promise.all(rows.map(async (r): Promise<TrackedComplaint> => {
+    const s = await effectiveStage(q,stageFor(defs, "complaint", r.config_version, r.stage),"complaint",r.id);
     const days = ageDays(Number(r.stage_entered_at), now);
     const open = r.status === "open";
     return {
-      id: r.id, business_id: r.business_id, kind: r.kind, quantity: r.quantity, unit: r.unit ?? "", item: r.item, order: r.order_no, customer: r.customer.replace(/^Demo Customer /, ""),
+      operations:!!defs.complaint.get(r.config_version)?.protocol, id: r.id, business_id: r.business_id, kind: r.kind, quantity: r.quantity, unit: r.unit ?? "", item: r.item, order: r.order_no, customer: r.customer.replace(/^Demo Customer /, ""),
       project: r.project, dispatch_no: r.dispatch_no, raised_at: Number(r.created_at), raised_by_me: r.created_by === actor.id, status: r.status, outcome: r.outcome,
       closed_at: r.closed_at ? Number(r.closed_at) : null, stage: r.stage, stage_label: s?.label ?? r.stage, days_in_stage: open ? days : 0,
       overdue: open && !!s?.slaDays && days > s.slaDays,
-      track: phaseTrack({ stage: r.stage, status: r.status, itemSource: r.item_source, owner: s?.owner, terminal: s?.terminal, outcome: r.outcome }),
+      track: {...phaseTrack({ stage: r.stage, status: r.status, itemSource: r.item_source, owner: s?.owner, terminal: s?.terminal, outcome: r.outcome }),...(defs.complaint.get(r.config_version)?.protocol?{steps:[],says:r.status==='closed'?'Closed; see recorded installation or follow-up outcome.':s?.label??r.stage,waitingFor:r.status==='closed'?null:s?.owner.replaceAll('_',' ')??null}:{})},
       priority: r.priority === "high" || r.priority === "urgent" || r.priority === "normal" ? r.priority : null,
     };
-  });
+  }));
   return out.sort((a, b) => {
     if (a.status !== b.status) return a.status === "open" ? -1 : 1;
     if (a.status === "closed") return (b.closed_at ?? 0) - (a.closed_at ?? 0);

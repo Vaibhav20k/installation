@@ -1,3 +1,4 @@
+import { effectiveStage } from '../services/operations-policy';
 /**
  * Reads for the dispatch and complaint flows: my pending steps, my team's pending steps, the record lists, the
  * management dashboard and Dispatch setup. Stage labels and owners come from each record's own flow version.
@@ -48,8 +49,8 @@ export async function openItems(q: Queryable, actor: Actor, now: number, opts: {
        from complaint x join project p on p.id = x.project_id join customer c on c.id = p.customer_id join sales_order o on o.id = x.order_id join component cm on cm.id = x.component_id
        where ${status} and ${f.sql}
      ) t order by stage_entered_at limit 1000`, f.params);
-  return rows.map((r) => {
-    const s = stageFor(defs, r.type, r.config_version, r.stage);
+  return Promise.all(rows.map(async (r) => {
+    const s = await effectiveStage(q,stageFor(defs, r.type, r.config_version, r.stage),r.type,r.id);
     const days = ageDays(Number(r.stage_entered_at), now);
     return {
       type: r.type, id: r.id, business_id: r.business_id, project_id: r.project_id, stage: r.stage, stage_label: s?.label ?? r.stage, owner: s?.owner ?? "system",
@@ -57,7 +58,7 @@ export async function openItems(q: Queryable, actor: Actor, now: number, opts: {
       overdue: !!s?.slaDays && days > s.slaDays && !r.hold_until, customer: r.customer.replace(/^Demo Customer /, ""), project: r.project, order: r.order_no, title: r.title,
       hold_until: r.hold_until, partial: r.partial, status: r.status, created_at: Number(r.created_at), open_complaints: Number(r.open_complaints),
     };
-  });
+  }));
 }
 
 /** Steps waiting for this person: open records whose current stage owner role they hold (and would be told about). */
@@ -149,7 +150,7 @@ async function rights(q: Queryable, actor: Actor, stage: StageSpec | undefined, 
 
 export async function dispatchDetail(q: Queryable, actor: Actor, id: string, now: number) {
   const [d] = await q.query<{ id: string; business_id: string; order_id: string; project_id: string; types: string[]; factory: string; stage: string; status: string; version: number; config_version: number;
-    stage_entered_at: number; hold_reason: string | null; hold_until: string | null; partial: boolean; replacement_for: string | null; replacement_no: string | null; order_no: string; customer: string; project: string; city: string; site_address: string; created_at: number }>(
+    sequence_no:number;site_ready:boolean;payment_state:string; installation_manager_id:string|null; stage_entered_at: number; hold_reason: string | null; hold_until: string | null; partial: boolean; replacement_for: string | null; replacement_no: string | null; order_no: string; customer: string; project: string; city: string; site_address: string; created_at: number }>(
     `select x.*, x.hold_until::text hold_until, k.business_id replacement_no, o.business_id order_no, c.name customer, p.name project, p.city, p.site_address
      from dispatch x join sales_order o on o.id = x.order_id join project p on p.id = x.project_id join customer c on c.id = p.customer_id left join complaint k on k.id = x.replacement_for where x.id = $1`, [id]);
   if (!d) return null;
@@ -178,7 +179,7 @@ export async function complaintDetail(q: Queryable, actor: Actor, id: string, no
   const [k] = await q.query<{ id: string; business_id: string; dispatch_id: string; dispatch_no: string; factory: string; order_no: string; project_id: string; customer: string; project: string; item: string; unit: string;
     kind: string; quantity: string; reason: string; stage: string; status: string; outcome: string | null; version: number; config_version: number; stage_entered_at: number; created_at: number; cost: string | null; costed_by: string | null;
     costed_by_name: string | null; approved_by_name: string | null; item_source: string | null; replacement_dispatch_id: string | null; replacement_no: string | null; superseded_by: string | null; superseded_no: string | null;
-    priority: string; unlisted: boolean; product_type: string | null }>(
+    qa_root_cause:string|null;preventive_action:string|null;received_at:number|null;installation_visit_id:string|null; priority: string; unlisted: boolean; product_type: string | null }>(
     `select k.*, k.quantity::float::text quantity, k.cost::text cost, d.business_id dispatch_no, d.factory, o.business_id order_no, c.name customer, p.name project, cm.name item, cm.unit, cm.unlisted, cm.product_type,
        ce.name costed_by_name, ae.name approved_by_name, rd.business_id replacement_no, sk.business_id superseded_no
      from complaint k join dispatch d on d.id = k.dispatch_id join sales_order o on o.id = k.order_id join project p on p.id = k.project_id join customer c on c.id = p.customer_id
@@ -187,7 +188,7 @@ export async function complaintDetail(q: Queryable, actor: Actor, id: string, no
   if (!k) return null;
   await requireFlowView(q, actor, k.project_id);
   const { def } = await loadDefinition(q, "complaint", k.config_version);
-  const stage = stageOf(def, k.stage);
+  const stage = await effectiveStage(q,stageOf(def, k.stage),"complaint",id);
   const [hist, r] = await Promise.all([history(q, "complaint", id), rights(q, actor, stage, k.project_id)]);
   // Cost and who set it are for Planning, Management, admins and the project's managers (break-it finding F1).
   if (!(await canSeeCost(q, actor, k.project_id))) {
@@ -200,8 +201,8 @@ export async function complaintDetail(q: Queryable, actor: Actor, id: string, no
 /** Orders and their BOM lines with what is left to dispatch, for the factory's "Ready for dispatch" screen. */
 export async function dispatchableOrders(q: Queryable, actor: Actor) {
   const f = await flowFilter(q, actor, "p", 1);
-  const orders = await q.query<{ id: string; business_id: string; status: string; customer: string; project: string; city: string }>(
-    `select o.id, o.business_id, o.status, c.name customer, p.name project, p.city from sales_order o join project p on p.id = o.project_id join customer c on c.id = p.customer_id
+  const orders = await q.query<{ id: string; business_id: string; status: string; customer: string; project: string; city: string; manager_id:string|null;manager_name:string|null }>(
+    `select o.id, o.business_id, o.status, c.name customer, p.name project, p.city,p.manager_id,(select name from employee where id=p.manager_id) manager_name from sales_order o join project p on p.id = o.project_id join customer c on c.id = p.customer_id
      where o.status not in ('cancelled','closed') and ${f.sql} order by o.business_id`, f.params);
   const lines = await q.query<{ id: string; order_id: string; business_id: string; name: string; unit: string; quantity: string; dispatch_group: string | null; sent: string }>(
     `select c.id, oi.order_id, c.business_id, c.name, c.unit, c.quantity::float::text quantity, c.dispatch_group,
@@ -210,7 +211,7 @@ export async function dispatchableOrders(q: Queryable, actor: Actor) {
   const { def } = await loadDefinition(q, "dispatch");
   return {
     orders: orders.map((o) => ({ ...o, customer: o.customer.replace(/^Demo Customer /, ""), lines: lines.filter((l) => l.order_id === o.id).map((l) => ({ ...l, left: String(Math.max(0, Number(l.quantity) - Number(l.sent))) })) })),
-    types: def.dispatchTypes ?? [], factories: def.factories ?? [], canCreate: f.roles.includes(def.stages[0]!.owner),
+    operations:!!def.protocol, types: def.dispatchTypes ?? [], factories: def.factories ?? [], canCreate: f.roles.includes(def.stages[0]!.owner),
   };
 }
 

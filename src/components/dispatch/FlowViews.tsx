@@ -12,14 +12,15 @@ import { shortDate } from "@/domain/install-schedule";
 import { StepperScroll } from "./StepperScroll";
 
 /** Main path only (branches to later stages show as skipped); the current stage is marked for screen readers. */
-export function Stepper({ def, current, status }: { def: FlowDefinition; current: string; status: string }) {
+export function Stepper({ def, current, status,history }: { def: FlowDefinition; current: string; status: string;history?:HistoryRow[] }) {
   const idx = def.stages.findIndex((s) => s.code === current);
+  const visited=new Set(history?.flatMap(h=>[h.from_stage,h.to_stage]).filter(Boolean));
   const steps = def.stages.filter((s) => s.owner !== "system" || s.terminal);
   return (
     <StepperScroll><ol className="flow-stepper" aria-label="Stages">
       {steps.map((s) => {
         const i = def.stages.indexOf(s);
-        const state = status !== "open" ? (s.terminal ? "current" : "done") : i < idx ? "done" : i === idx ? "current" : "todo";
+        const state = def.protocol && history && i < idx && !visited.has(s.code) ? "skipped" : status !== "open" ? (s.terminal ? "current" : "done") : i < idx ? "done" : i === idx ? "current" : "todo";
         return <li key={s.code} data-state={state} aria-current={state === "current" ? "step" : undefined}><span className="flow-stepper-dot" aria-hidden /><span className="flow-stepper-label">{s.label}</span></li>;
       })}
     </ol></StepperScroll>
@@ -42,7 +43,7 @@ export function Timeline({ rows, def }: { rows: HistoryRow[]; def: FlowDefinitio
         <li key={h.id} data-kind={h.kind}>
           <div className="spread"><strong>{KIND[h.kind] ?? h.kind}: {h.kind === "back" || h.kind === "create" ? `${label(h.from_stage) || "new"} → ${label(h.to_stage)}` : h.kind === "hold" ? label(h.to_stage) : label(h.from_stage) || label(h.to_stage)}</strong>
             <span className="small muted">{when(Number(h.at))}</span></div>
-          <span className="small muted">{h.actor ?? "System"}</span>
+          <span className="small muted">{h.actor ?? "System"} · {Math.max(0,Math.round((Number(rows[rows.indexOf(h)+1]?.at??(def.stages.find(s=>s.code===h.to_stage)?.terminal?h.at:Date.now()))-Number(h.at))/3600000))} hours until next event{rows.indexOf(h)===rows.length-1&&!def.stages.find(s=>s.code===h.to_stage)?.terminal?" (current interval)":""}</span>
           {typeof h.data.note === "string" && h.data.note && <p className="small" style={{ margin: "2px 0 0" }}>{h.data.note}</p>}
           {h.reason && <p className="small" style={{ margin: "2px 0 0" }}><em>Reason:</em> {h.reason}</p>}
           {detail(h.data).length > 0 && <p className="small muted" style={{ margin: "2px 0 0" }}>{detail(h.data).join(" · ")}</p>}

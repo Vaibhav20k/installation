@@ -73,7 +73,8 @@ export async function requireEmployeeScope(q: Queryable, actor: Actor, employeeI
  */
 export function projectScopeSql(actor: Actor, alias = "p", param = "$1"): { sql: string; all: boolean } {
   if (actor.role === "admin") return { sql: "true", all: true };
-  const viaReservation = `exists (select 1 from visit v2 join reservation r2 on r2.visit_id = v2.id where v2.project_id = ${alias}.id and r2.employee_id = ${param})`;
+  const head = `exists(select 1 from flow_role_member hm where hm.employee_id=${param} and hm.role_code='installation_head')`;
+  const viaReservation = `(${head} or exists (select 1 from visit v2 join reservation r2 on r2.visit_id = v2.id where v2.project_id = ${alias}.id and r2.employee_id = ${param}))`;
   if (actor.role === "manager") return { sql: `(${alias}.manager_id = ${param} or ${viaReservation})`, all: false };
   if (actor.role === "supervisor") return { sql: `(${alias}.manager_id = (select manager_id from employee where id = ${param}) or ${viaReservation})`, all: false };
   return { sql: viaReservation, all: false };

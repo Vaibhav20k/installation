@@ -14,7 +14,7 @@ const shape = (v: Viewer) => visibleGroups(v).map((g) => [g.id, g.tabs.map((t) =
 
 describe("the Factory menu", () => {
   it("holds only factory work: Home, Dispatch, Complaints, Reports", () => {
-    expect(shape(FACTORY)).toEqual([["home", ["/"]], ["fdispatch", ["/dispatch", "/dispatch/new"]], ["complaints", ["/complaints"]], ["reports", ["/reports"]]]);
+    expect(shape(FACTORY)).toEqual([["home", ["/my-tasks", "/?overview=1"]], ["fdispatch", ["/dispatch", "/dispatch/new"]], ["complaints", ["/complaints"]], ["reports", ["/reports"]]]);
   });
   it("shows Ready for dispatch only to the factory dispatch role", () => {
     expect(Object.fromEntries(shape(ACCOUNTS)).fdispatch).toEqual(["/dispatch"]);
