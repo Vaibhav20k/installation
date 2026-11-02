@@ -18,7 +18,7 @@ This extends the existing application. The original audit and implementation pla
 2. As Admin, open **Dispatch setup → Operations policy**. Enter actual Tier 1/2 cost limits, plan/regularization approver roles, reminder offset and normal/complaint daily minutes and labour rates. Test fixture amounts are not production defaults.
 3. Assign the separate department roles, including Factory, Dispatch, Finance, QA, Installation Head and tier approvers. Existing Accounts still owns invoice/e-way documents. Confirm each site’s active Installation Manager.
 4. Publish the revised workflows from Setup. Publication is transactional for the pair of flows. New records use the new version; existing records keep their pinned configuration and remain visible with a legacy label.
-5. New dispatches need a packing list. Historical no-list dispatches and unlisted-item reporting are preserved. New complaint closure means installed; historical received/superseded closures are not rewritten.
+5. New dispatches normally carry a packing list. The factory may still send without one by saying so explicitly (owner decision of 28 Oct 2026), and the Installation Manager then reports items not on the list at receipt. New complaint closure means installed; historical received/superseded closures are not rewritten.
 
 No blanket conversion of in-flight legacy records is provided: that would require reconciling real payment, QA, receipt and installation evidence. Their old history is retained rather than fabricated.
 

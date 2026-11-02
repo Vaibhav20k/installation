@@ -37,7 +37,7 @@ export default async function DispatchPage({ searchParams }: { searchParams: Pro
   const factory = (await workspaceOf(db, actor)).current === "factory";
   const hidden: View = factory ? "complaints" : "dashboard";
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") && sp.view !== hidden ? (sp.view as View) : "all";
-  const canCreate = vis.roles.includes("factory_dispatch");
+  const canCreate = vis.roles.some((r) => r === "factory" || r === "factory_dispatch");
   const hasTeam = actor.role !== "employee";
   // One read per list feeds both the view and the count badges on the view buttons.
   const [all, mine, reports, team] = await Promise.all([openItems(db, actor, now), myPending(db, actor, now), reportsToDecide(db, actor), hasTeam ? teamPending(db, actor, now) : Promise.resolve([])]);

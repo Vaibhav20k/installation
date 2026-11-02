@@ -52,7 +52,7 @@ export default async function ComplaintDetail({ params }: { params: Promise<{ id
         </dl>
       </header>
       {k.def.protocol && <section className="plate"><h2>QA and installation</h2><p>Final cause: {k.qa_root_cause?.replaceAll('_',' ')??'Waiting for QA'}</p><p>Preventive action: {k.preventive_action??'Waiting for QA'}</p>{k.received_at&&k.status==='open'&&<p>{k.installation_visit_id?'Replacement received; complete its Site Plan before installation done.':'Replacement received; assign an installation team.'} <Link href={`/site-plans?complaint=${k.id}`}>Site Plans</Link></p>}{isQa&&<CreatePreventive complaintId={k.id} people={people}/>}<ul>{projects.map(p=><li key={p.id}><Link href={`/preventive-actions/${p.id}`}>{p.business_id} · {p.preventive_state.replaceAll('_',' ')}</Link></li>)}</ul></section>}
-      {!k.def.protocol&&<PhaseStrip k={k} />}
+      <PhaseStrip k={k} operations={!!k.def.protocol} />
 
       {k.status === "open" && s && (
         <section className="plate flow-now" aria-labelledby="h-now">

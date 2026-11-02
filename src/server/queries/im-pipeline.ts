@@ -29,7 +29,7 @@ export interface TileSpec { key: TileKey; label: string; sub?: string; hint: str
 export const TILES: readonly TileSpec[] = [
   { key: "ready", label: "Ready for dispatch", hint: "Factory has it ready, not on a truck yet" },
   { key: "dispatched", label: "Dispatched", hint: "On the truck, to check at site" },
-  { key: "received", label: "Received", hint: "Checked at site, work not started" },
+  { key: "received", label: "Received", hint: "At site, work not started" },
   { key: "install1", label: "1st installation", sub: "Carcass", hint: "Carcass being fitted" },
   { key: "install2", label: "2nd installation", sub: "Shutters", hint: "Shutters being fitted" },
   { key: "install3", label: "3rd installation", sub: "Countertop", hint: "Countertop and backsplash being fitted" },
@@ -38,7 +38,7 @@ export const TILES: readonly TileSpec[] = [
 
 export const isTileKey = (s: string | undefined): s is TileKey => !!s && (TILE_KEYS as readonly string[]).includes(s);
 
-const BEFORE_TRUCK = new Set(["ready_for_dispatch", "site_readiness", "tax_invoice", "eway_bill", "dispatched"]);
+const BEFORE_TRUCK = new Set(["packaging", "ready_for_dispatch", "site_readiness", "payment_request", "payment_check", "tax_invoice", "eway_bill", "cleared", "dispatched"]);
 const GROUP_RANK: Record<string, 1 | 2 | 3> = { carcass: 1, shutters: 2, countertop: 3, backsplash: 3 };
 const CODE_RANK: Record<string, 1 | 2 | 3> = { D1: 1, D2: 2, D3: 3, D3a: 3, D3b: 3 };
 
@@ -55,7 +55,7 @@ export function installRank(types: readonly string[], groupsOf: (code: string) =
 export function tileFor(stage: string, types: readonly string[], groupsOf?: (code: string) => readonly string[]): TileKey | null {
   if (BEFORE_TRUCK.has(stage)) return "ready";
   if (stage === "received") return "dispatched";
-  if (stage === "installation_started") return "received";
+  if (stage === "mnd_check" || stage === "installation_started") return "received";
   if (stage === "installation_done") return `install${installRank(types, groupsOf)}` as TileKey;
   return null;
 }
@@ -65,9 +65,12 @@ export const IM_ACTION: Record<string, string> = {
   site_readiness: "Confirm site ready", received: "Mark received", installation_started: "Start installation", installation_done: "Installation done",
 };
 
+/** The revised process checks the items in a separate step after receipt. */
+export const imAction = (stage: string): string | undefined => (stage === "mnd_check" ? "Do MND check" : IM_ACTION[stage]);
+
 /** What a row shows when the next step belongs to someone else. */
 export function waitingFor(owner: string, ownerName: string): string {
-  if (owner === "factory_dispatch") return "Waiting for factory";
+  if (owner === "factory_dispatch" || owner === "factory") return "Waiting for factory";
   if (owner === "accounts") return "Waiting for accounts";
   if (owner === "installation_manager") return "Waiting for the Installation Manager";
   if (owner === "system") return "Moves on by itself";
@@ -117,8 +120,8 @@ export async function imPipeline(q: Queryable, actor: Actor, now: number): Promi
       key: i.id, href: `/dispatch/${i.id}`, customer: i.customer, project: i.project, code: i.business_id,
       what: `${(t?.types ?? []).map(typeLabel).join(" + ")}${t?.replacement ? " · replacement" : ""}`, stage_label: i.stage_label,
       days: i.days_in_stage, overdue: i.overdue, hold_until: i.hold_until, partial: i.partial,
-      action: mine && IM_ACTION[i.stage] ? { label: IM_ACTION[i.stage]!, href: `/dispatch/${i.id}#h-now` } : null,
-      waiting: mine && IM_ACTION[i.stage] ? null : waitingFor(i.owner, i.owner_name),
+      action: mine && imAction(i.stage) ? { label: imAction(i.stage)!, href: `/dispatch/${i.id}#h-now` } : null,
+      waiting: mine && imAction(i.stage) ? null : waitingFor(i.owner, i.owner_name),
     });
   }
   rows.handover = await handoverRows(q, actor, now);

@@ -10,7 +10,7 @@ import type { Db } from "@/server/db/client";
 import type { Actor } from "@/server/auth/permissions";
 import { TZ } from "@/lib/format";
 import { PageHeader } from "@/components/ui/Notice";
-import { defaultFactoryTile, factoryPipeline, isFTileKey, type FTileKey, type FactoryRow, type PhaseCount } from "@/server/queries/factory-pipeline";
+import { defaultFactoryTile, factoryPipeline, isFTileKey, type FTileKeyAny, type FactoryRow, type PhaseCount } from "@/server/queries/factory-pipeline";
 import { FactoryRowItem } from "./FactoryRows";
 import { StagePicker } from "@/components/home/StagePicker";
 
@@ -59,7 +59,7 @@ function YourSteps({ rows }: { rows: FactoryRow[] }) {
   );
 }
 
-function Panel({ tile, rows, phases }: { tile: { key: FTileKey; label: string; n: number; hint: string; unit: string }; rows: FactoryRow[]; phases: PhaseCount[] }) {
+function Panel({ tile, rows, phases }: { tile: { key: FTileKeyAny; label: string; n: number; hint: string; unit: string }; rows: FactoryRow[]; phases: PhaseCount[] }) {
   const id = `h-fac-list-${tile.key}`;
   return (
     <>
@@ -79,7 +79,7 @@ function Panel({ tile, rows, phases }: { tile: { key: FTileKey; label: string; n
 
 export async function FactoryHome({ db, actor, now, sp }: { db: Db; actor: Actor; now: number; sp: Record<string, string | undefined> }) {
   const p = await factoryPipeline(db, actor, now);
-  const selected: FTileKey = isFTileKey(sp.stage) ? sp.stage : defaultFactoryTile(p.tiles);
+  const selected: FTileKeyAny = isFTileKey(sp.stage) && p.tiles.some((t) => t.key === sp.stage) ? sp.stage : defaultFactoryTile(p.tiles);
   const open = p.tiles.filter((t) => t.key !== "send").reduce((n, t) => n + t.n, 0);
   const late = p.tiles.reduce((n, t) => n + t.overdue, 0);
   return (

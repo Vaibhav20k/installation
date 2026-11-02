@@ -119,3 +119,5 @@
 @media (max-width: 959px) { #complaints, .queue, .queue-quiet span { scroll-margin-top: 124px; } }
 /* Laptop: the first thing on a page keeps clear of the bell in the top right corner. */
 @media (min-width: 960px) { .main > .page-enter > :first-child { margin-right: 56px; } }
+/* The revised process adds a Packing tile. */
+@media (min-width: 1080px) { .fac-strip:has(> li:nth-child(7)) { grid-template-columns: repeat(7, minmax(0, 1fr)); } }

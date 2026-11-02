@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { freshDb, idOf } from './helpers';
 import type { Db } from '@/server/db/client';
-import { flowKit, PEOPLE } from './flow-helpers';
+import { flowKit, PEOPLE, testPolicy } from './flow-helpers';
 import { activateOperations } from '@/server/services/flow-admin';
 import { saveOperationsPolicy } from '@/server/services/operations-policy';
 import { createDispatch } from '@/server/services/dispatch';
@@ -13,7 +13,6 @@ import { createSitePlans, transitionSitePlan } from '@/server/services/workforce
 import { createPreventiveProject, advancePreventiveProject } from '@/server/services/preventive';
 import { siteCheckIn, siteCheckOut } from '@/server/services/site-presence';
 import { operationsReports } from '@/server/queries/operations-reports';
-export const testPolicy = { tier1Max: '1000', tier2Max: '5000', planApprover: 'installation_head', regularizationApprover: 'installation_head', readinessReminderDays: 1, installation: { dailyMinutes: 480, hourlyRate: '100' }, complaint: { dailyMinutes: 240, hourlyRate: '150' } };
 describe('operations process', () => {
     let db: Db;
     const k = flowKit(() => db);

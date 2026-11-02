@@ -16,15 +16,20 @@
 import type { Queryable } from "../db/client";
 import type { Actor } from "../auth/permissions";
 import { ageDays } from "@/domain/flow";
-import { PHASES, STAGE_PHASE, phaseOf, type PhaseCode } from "@/domain/complaint-phases";
-import { actorRoles, flowFilter } from "../services/flow-core";
+import { ALL_PHASES, PHASES, STAGE_PHASE, chipPhases, phaseOf, type PhaseCode } from "@/domain/complaint-phases";
+import { actorRoles, flowFilter, loadDefinition } from "../services/flow-core";
+import { effectiveStage } from "../services/operations-policy";
 import { allDefinitions, dispatchableOrders, openItems, stageFor, type FlowItem } from "./dispatch";
 import { RECENT_CLOSED_DAYS } from "./complaint-tracker";
 
 export const FTILE_KEYS = ["send", "site", "accounts", "load", "truck", "replace"] as const;
 export type FTileKey = (typeof FTILE_KEYS)[number];
 
-export interface FTileSpec { key: FTileKey; label: string; hint: string; unit: string }
+/** Only the revised process has a Packing step that waits on the factory. */
+export type FTileKeyAny = FTileKey | "packing";
+const PACKING_TILE = { key: "packing", label: "Packing", hint: "Being packed, not marked ready yet", unit: "Counted per dispatch (truckload)." } as const;
+
+export interface FTileSpec { key: FTileKeyAny; label: string; hint: string; unit: string }
 export const FACTORY_TILES: readonly FTileSpec[] = [
   { key: "send", label: "To send", hint: "Orders with items left to dispatch", unit: "Counted per order." },
   { key: "site", label: "At site check", hint: "Waiting for the Installation Manager to confirm the site", unit: "Counted per dispatch (truckload)." },
@@ -34,12 +39,15 @@ export const FACTORY_TILES: readonly FTileSpec[] = [
   { key: "replace", label: "Replacements", hint: "Open complaints the factory is replacing", unit: "Counted per complaint." },
 ];
 
-export const isFTileKey = (s: string | undefined): s is FTileKey => !!s && (FTILE_KEYS as readonly string[]).includes(s);
+export const isFTileKey = (s: string | undefined): s is FTileKeyAny => !!s && (s === "packing" || (FTILE_KEYS as readonly string[]).includes(s));
 
-const DISPATCH_TILE: Readonly<Record<string, FTileKey>> = { site_readiness: "site", tax_invoice: "accounts", eway_bill: "accounts", dispatched: "load", received: "truck" };
+const DISPATCH_TILE: Readonly<Record<string, FTileKeyAny>> = {
+  packaging: "packing", ready_for_dispatch: "packing", site_readiness: "site", payment_request: "accounts", payment_check: "accounts", tax_invoice: "accounts", eway_bill: "accounts",
+  cleared: "load", dispatched: "load", received: "truck",
+};
 
 /** The tile an open dispatch belongs to, from the step it waits for; null for a stage outside the factory's side. */
-export const dispatchTile = (stage: string): FTileKey | null => DISPATCH_TILE[stage] ?? null;
+export const dispatchTile = (stage: string): FTileKeyAny | null => DISPATCH_TILE[stage] ?? null;
 
 /** The factory-side button for a dispatch stage, and the role that owns it. */
 export const DISPATCH_ACTION: Readonly<Record<string, { role: string; label: string }>> = {
@@ -48,8 +56,15 @@ export const DISPATCH_ACTION: Readonly<Record<string, { role: string; label: str
   dispatched: { role: "factory_dispatch", label: "Record dispatch" },
 };
 
+/** Button words for the steps only the revised process has. */
+const OPERATIONS_DISPATCH_ACTION: Readonly<Record<string, string>> = {
+  ready_for_dispatch: "Mark ready", payment_request: "Request payment check", payment_check: "Confirm payment", cleared: "Clear for dispatch",
+};
+export const factoryDispatchAction = (stage: string): string | undefined => OPERATIONS_DISPATCH_ACTION[stage] ?? DISPATCH_ACTION[stage]?.label;
+
 /** What a dispatch row shows when the step is not the viewer's. */
 export function dispatchWaiting(stage: string, ownerName = ""): string {
+  if (stage === "dispatched" && ownerName === "Dispatch") return "Waiting for dispatch";
   if (stage === "site_readiness") return "Waiting for the Installation Manager";
   if (stage === "tax_invoice" || stage === "eway_bill") return "Waiting for accounts";
   if (stage === "dispatched") return "Waiting for factory dispatch";
@@ -58,9 +73,9 @@ export function dispatchWaiting(stage: string, ownerName = ""): string {
 }
 
 /** The factory reads the last complaint phase as "Ready to send"; the domain phase key stays "dispatched". */
-export const factoryPhaseLabel = (p: PhaseCode | "done") => (p === "done" ? "Closed" : p === "dispatched" ? "Ready to send" : PHASES.find((x) => x.code === p)!.label);
+export const factoryPhaseLabel = (p: PhaseCode | "done") => (p === "done" ? "Closed" : p === "dispatched" ? "Ready to send" : ALL_PHASES.find((x) => x.code === p)!.label);
 export const FACTORY_PHASES = PHASES.map((p) => ({ code: p.code, label: factoryPhaseLabel(p.code) }));
-export const isPhaseCode = (s: string | undefined): s is PhaseCode => PHASES.some((p) => p.code === s);
+export const isPhaseCode = (s: string | undefined): s is PhaseCode => ALL_PHASES.some((p) => p.code === s);
 
 /** The button on a complaint step the viewer owns, in the step's own words. */
 export const COMPLAINT_ACTION: Readonly<Record<string, string>> = {
@@ -68,12 +83,19 @@ export const COMPLAINT_ACTION: Readonly<Record<string, string>> = {
   store_check: "Check store", purchase: "Record purchase", iqc: "Check material", store_issue: "Issue from store", production: "Record production",
   packaging: "Record packing", ready_for_dispatch: "Send replacement",
 };
-export const complaintAction = (stage: string, label: string) => COMPLAINT_ACTION[stage] ?? label;
+const OPERATIONS_COMPLAINT_ACTION: Readonly<Record<string, string>> = { qc_handoff: "Hand over to planning", store_receipt: "Record store receipt", qa_review: "Complete QA review" };
+export const complaintAction = (stage: string, label: string) => OPERATIONS_COMPLAINT_ACTION[stage] ?? COMPLAINT_ACTION[stage] ?? label;
 export const complaintWaiting = (owner: string, ownerName: string) => (owner === "system" ? "On its way to site" : `Waiting for ${ownerName || owner.replace(/_/g, " ")}`);
 
 /** Flow order of complaint steps (shipped flow); steps an administrator adds later sort after them. */
 const STEP_ORDER = Object.keys(STAGE_PHASE);
-export const stepRank = (stage: string) => { const i = STEP_ORDER.indexOf(stage); return i < 0 ? STEP_ORDER.length : i; };
+const OPERATIONS_STEP_AFTER: Readonly<Record<string, string>> = { qc_handoff: "management_approval", store_receipt: "purchase", qa_review: "packaging" };
+export const stepRank = (stage: string) => {
+  const after = OPERATIONS_STEP_AFTER[stage];
+  if (after) return STEP_ORDER.indexOf(after) + 0.5;
+  const i = STEP_ORDER.indexOf(stage);
+  return i < 0 ? STEP_ORDER.length : i;
+};
 
 /** A factory department role: any flow role except the Installation Manager's. */
 export const hasFactoryRole = (roles: readonly string[]) => roles.some((r) => r !== "installation_manager");
@@ -100,11 +122,12 @@ function complaintRow(i: FlowItem, roles: readonly string[], priority: string | 
 }
 
 export async function factoryPipeline(q: Queryable, actor: Actor, now: number): Promise<{
-  tiles: FactoryTile[]; rows: Record<FTileKey, FactoryRow[]>; phases: PhaseCount[]; yourSteps: FactoryRow[] | null;
+  tiles: FactoryTile[]; rows: Record<FTileKeyAny, FactoryRow[]>; phases: PhaseCount[]; yourSteps: FactoryRow[] | null;
 }> {
   const roles = await actorRoles(q, actor.id);
   const [items, orders] = await Promise.all([openItems(q, actor, now), dispatchableOrders(q, actor)]);
-  const rows = Object.fromEntries(FTILE_KEYS.map((k) => [k, [] as FactoryRow[]])) as Record<FTileKey, FactoryRow[]>;
+  const rows = Object.fromEntries([...FTILE_KEYS, "packing"].map((k) => [k, [] as FactoryRow[]])) as Record<FTileKeyAny, FactoryRow[]>;
+  const operations = !!(await loadDefinition(q, "dispatch")).def.protocol;
 
   for (const o of orders.orders) {
     const left = o.lines.filter((l) => Number(l.left) > 0);
@@ -125,27 +148,32 @@ export async function factoryPipeline(q: Queryable, actor: Actor, now: number): 
     if (i.type === "complaint") { rows.replace.push(complaintRow(i, roles, priorities.get(i.id) ?? null)); continue; }
     const tile = dispatchTile(i.stage);
     if (!tile) continue;
-    const act = DISPATCH_ACTION[i.stage];
-    const mine = !!act && roles.includes(act.role);
+    const label = factoryDispatchAction(i.stage);
+    const mine = !!label && roles.includes(i.owner);
     rows[tile].push({
       key: i.id, href: `/dispatch/${i.id}`, title: `${i.customer} · ${i.project}`, code: i.business_id, what: `${i.order} · ${i.title}`, stage_label: i.stage_label,
-      days: i.days_in_stage, overdue: i.overdue, action: mine ? { label: act.label, href: `/dispatch/${i.id}#h-now` } : null,
+      days: i.days_in_stage, overdue: i.overdue, action: mine ? { label: label!, href: `/dispatch/${i.id}#h-now` } : null,
       waiting: mine ? null : dispatchWaiting(i.stage, i.owner_name),
     });
   }
-  for (const k of FTILE_KEYS) if (k !== "send") rows[k].sort(byUrgency);
+  for (const k of [...FTILE_KEYS, "packing"] as const) if (k !== "send") rows[k].sort(byUrgency);
 
-  const phases = FACTORY_PHASES.map((p) => {
-    const at = complaints.filter((c) => phaseOf(c.stage, c.owner) === p.code);
-    return { ...p, n: at.length, overdue: at.filter((c) => c.overdue).length };
+  const atPhase = (code: PhaseCode) => complaints.filter((c) => phaseOf(c.stage, c.owner) === code);
+  const phaseCounts = Object.fromEntries(ALL_PHASES.map((p) => [p.code, atPhase(p.code).length])) as Record<PhaseCode, number>;
+  const phases = chipPhases(operations, phaseCounts).map((p) => {
+    const at = atPhase(p.code);
+    return { code: p.code, label: factoryPhaseLabel(p.code), n: at.length, overdue: at.filter((c) => c.overdue).length };
   });
   const yourSteps = hasFactoryRole(roles) ? rows.replace.filter((r) => r.action) : null;
-  const tiles = FACTORY_TILES.map((t) => ({ ...t, n: rows[t.key].length, overdue: rows[t.key].filter((r) => r.overdue).length, mine: rows[t.key].filter((r) => r.action).length }));
+  const specs: readonly FTileSpec[] = operations
+    ? [FACTORY_TILES[0]!, PACKING_TILE, ...FACTORY_TILES.slice(1).map((t) => (t.key === "accounts" ? { ...t, label: "Payment & accounts", hint: "Payment check, tax invoice and e-way bill" } : t))]
+    : FACTORY_TILES;
+  const tiles = specs.map((t) => ({ ...t, n: rows[t.key].length, overdue: rows[t.key].filter((r) => r.overdue).length, mine: rows[t.key].filter((r) => r.action).length }));
   return { tiles, rows, phases, yourSteps };
 }
 
 /** The tile open by default: the first tile with something the viewer can act on, else the first non-empty tile. */
-export function defaultFactoryTile(tiles: readonly { key: FTileKey; n: number; mine: number }[]): FTileKey {
+export function defaultFactoryTile<K extends FTileKeyAny>(tiles: readonly { key: K; n: number; mine: number }[]): K {
   return (tiles.find((t) => t.mine > 0) ?? tiles.find((t) => t.n > 0) ?? tiles[0]!).key;
 }
 
@@ -155,7 +183,7 @@ export interface QueueComplaint {
   id: string; business_id: string; kind: "missing" | "damaged"; quantity: string; unit: string; item: string; unlisted: boolean;
   priority: "normal" | "high" | "urgent"; order: string; customer: string; project: string; status: "open" | "closed";
   stage: string; stage_label: string; phase: PhaseCode | "done"; owner: string; owner_name: string;
-  days: number; overdue: boolean; mine: boolean; created_at: number; closed_at: number | null;
+  days: number; overdue: boolean; mine: boolean; created_at: number; closed_at: number | null; operations?: boolean;
 }
 
 /** Open complaints and those closed in the last 30 days, in the viewer's flow scope, with the step owner. No cost. */
@@ -172,8 +200,9 @@ export async function factoryComplaints(q: Queryable, actor: Actor, now: number)
      join component cm on cm.id = x.component_id
      where (x.status = 'open' or x.closed_at >= $${f.params.length + 1}) and ${f.sql}
      order by x.created_at limit 500`, [...f.params, since]);
-  return rows.map((r): QueueComplaint => {
-    const s = stageFor(defs, "complaint", r.config_version, r.stage);
+  return Promise.all(rows.map(async (r): Promise<QueueComplaint> => {
+    // Approval goes to the tier the cost routed to, so the step's owner comes from the record.
+    const s = await effectiveStage(q, stageFor(defs, "complaint", r.config_version, r.stage), "complaint", r.id);
     const open = r.status === "open";
     const owner = s?.owner ?? "system";
     const days = open ? ageDays(Number(r.stage_entered_at), now) : 0;
@@ -183,8 +212,9 @@ export async function factoryComplaints(q: Queryable, actor: Actor, now: number)
       project: r.project, status: r.status, stage: r.stage, stage_label: s?.label ?? r.stage, phase: open ? phaseOf(r.stage, owner, s?.terminal) : "done",
       owner, owner_name: owner === "system" ? "Automatic" : roleNames.get(owner) ?? owner, days, overdue: open && !!s?.slaDays && days > s.slaDays,
       mine: open && owner !== "system" && f.roles.includes(owner), created_at: Number(r.created_at), closed_at: r.closed_at ? Number(r.closed_at) : null,
+      operations: !!defs.complaint.get(r.config_version)?.protocol,
     };
-  });
+  }));
 }
 
 export type PhaseFilter = PhaseCode | "all";
@@ -196,7 +226,7 @@ const queueOrder = (a: QueueComplaint, b: QueueComplaint) => Number(b.mine) - Nu
 /** Counts for the chips: every open complaint, and per phase. */
 export function queueCounts(list: readonly QueueComplaint[]) {
   const open = list.filter((c) => c.status === "open");
-  const byPhase = Object.fromEntries(PHASES.map((p) => [p.code, 0])) as Record<PhaseCode, number>;
+  const byPhase = Object.fromEntries(ALL_PHASES.map((p) => [p.code, 0])) as Record<PhaseCode, number>;
   const overdueByPhase = { ...byPhase };
   for (const c of open) if (c.phase !== "done") { byPhase[c.phase] += 1; if (c.overdue) overdueByPhase[c.phase] += 1; }
   return { open: open.length, closed: list.length - open.length, overdue: open.filter((c) => c.overdue).length, mine: open.filter((c) => c.mine).length, byPhase, overdueByPhase };

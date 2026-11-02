@@ -68,7 +68,6 @@ export async function createDispatch(ctx: Ctx, input: unknown) {
     if (o.status === "cancelled" || o.status === "closed") throw conflict(`Order ${o.business_id} is ${o.status}.`);
     await requireStageOwner(q, ctx.actor, first, o.project_id);
     if(def.protocol){
-      if(d.withoutList)throw validation("A packing list is required for the new operations flow. Legacy no-list dispatches remain available in their original records.");
       const [im]=await q.query("select 1 from project p join employee e on e.id=p.manager_id join flow_role_member m on m.employee_id=e.id and m.role_code='installation_manager' where p.id=$1 and e.id=$2 and e.active",[o.project_id,d.installationManagerId??null]);
       if(!im)throw validation("Select the active Installation Manager assigned to this site.");
     }

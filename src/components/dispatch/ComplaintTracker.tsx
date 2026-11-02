@@ -7,7 +7,7 @@
  */
 import Link from "next/link";
 import { Check } from "@phosphor-icons/react/dist/ssr";
-import { PHASES, phaseTrack, type PhaseCode, type PhaseTrack } from "@/domain/complaint-phases";
+import { ALL_PHASES, chipPhases, phaseTrack, type PhaseCode, type PhaseTrack } from "@/domain/complaint-phases";
 import { RECENT_CLOSED_DAYS, trackerCounts, type TrackedComplaint } from "@/server/queries/complaint-tracker";
 import { TZ } from "@/lib/format";
 
@@ -41,8 +41,8 @@ function Waiting({ track, stageLabel }: { track: PhaseTrack; stageLabel: string 
  * The same tracker at the top of a complaint's page: one sentence on what is happening, then the five phases.
  * The detailed thirteen-step stepper stays below it for the departments.
  */
-export function PhaseStrip({ k }: { k: { stage: string; status: string; item_source: string | null; outcome: string | null; step?: { label: string; owner: string; terminal?: boolean } } }) {
-  const track = phaseTrack({ stage: k.stage, status: k.status, itemSource: k.item_source, owner: k.step?.owner, terminal: k.step?.terminal, outcome: k.outcome });
+export function PhaseStrip({ k, operations }: { k: { stage: string; status: string; item_source: string | null; outcome: string | null; step?: { label: string; owner: string; terminal?: boolean } }; operations?: boolean }) {
+  const track = phaseTrack({ stage: k.stage, status: k.status, itemSource: k.item_source, owner: k.step?.owner, terminal: k.step?.terminal, outcome: k.outcome, operations });
   const stageLabel = k.step?.label ?? k.stage;
   return (
     <section className="ct-strip" aria-label="Where the factory is">
@@ -90,7 +90,7 @@ const href = (show: "open" | "closed", phase?: PhaseCode) => `/dispatch?view=com
 
 export function parseTrackerFilter(sp: { show?: string; phase?: string }) {
   const show: "open" | "closed" = sp.show === "closed" ? "closed" : "open";
-  const phase = show === "open" ? PHASES.find((p) => p.code === sp.phase)?.code : undefined;
+  const phase = show === "open" ? ALL_PHASES.find((p) => p.code === sp.phase)?.code : undefined;
   return { show, phase };
 }
 
@@ -102,7 +102,7 @@ export function ComplaintTracker({ list, show, phase }: { list: TrackedComplaint
   const shown = list.filter((c) => c.status === show && (!phase || c.track.phase === phase));
   const mine = shown.filter((c) => c.raised_by_me);
   const others = shown.filter((c) => !c.raised_by_me);
-  const phaseLabel = phase ? PHASES.find((p) => p.code === phase)!.label : null;
+  const phaseLabel = phase ? ALL_PHASES.find((p) => p.code === phase)!.label : null;
   return (
     <div className="stack ct">
       <p className="small muted ct-intro">Missing and damaged items, and where the factory is with each replacement. Tap one for the full history.</p>
@@ -114,7 +114,7 @@ export function ComplaintTracker({ list, show, phase }: { list: TrackedComplaint
         {show === "open" && (
           <div className="ct-chips" role="group" aria-label="Phase">
             <Link href={href("open")} aria-current={!phase ? "true" : undefined}>All phases</Link>
-            {PHASES.map((p) => (
+            {chipPhases(list.some((c) => c.operations), n.byPhase).map((p) => (
               <Link key={p.code} href={href("open", p.code)} aria-current={phase === p.code ? "true" : undefined} data-zero={n.byPhase[p.code] === 0 || undefined}>
                 {p.label} <span className="ct-n">{n.byPhase[p.code]}</span>
               </Link>

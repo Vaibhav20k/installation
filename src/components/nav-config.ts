@@ -14,7 +14,7 @@ export interface NavGroup { id: string; label: string; short: string; tabs: NavT
 const staff: Who = (v) => v.role !== "employee";
 const admin: Who = (v) => v.role === "admin";
 const flow: Who = (v) => v.flow || v.role === "admin";
-const sender: Who = (v) => !!v.flowRoles?.includes("factory_dispatch");
+const sender: Who = (v) => !!v.flowRoles?.some((r) => r === "factory" || r === "factory_dispatch");
 const tab = (href: string, label: string, who?: Who, also: string[] = []): NavTab => ({ href, label, match: [href, ...also], who });
 
 export const GROUPS: NavGroup[] = [
@@ -61,7 +61,8 @@ const OPERATIONS_GROUPS:NavGroup[]=[
  {id:'setup',label:'Setup',short:'Setup',who:admin,tabs:[tab('/dispatch/setup','Dispatch setup')]},
 ];
 export function visibleGroups(v: Viewer): NavGroup[] {
-  return (v.operations ? OPERATIONS_GROUPS : v.ws === "factory" ? FACTORY_GROUPS : GROUPS).filter((g) => !g.who || g.who(v))
+  // The switch always decides the side: Factory is factory work; Installation is the revised process menu once published.
+  return (v.ws === "factory" ? FACTORY_GROUPS : v.operations ? OPERATIONS_GROUPS : GROUPS).filter((g) => !g.who || g.who(v))
     .map((g) => ({ ...g, tabs: g.tabs.filter((t) => !t.who || t.who(v)) }))
     .filter((g) => g.tabs.length > 0);
 }
@@ -91,6 +92,6 @@ const SLOTS_DEPT = ["dispatch", "inbox", "work", "home"];
 const SLOTS_FACTORY = ["home", "fdispatch", "complaints", "reports", "setup"];
 
 export function phoneSlots(v: Viewer, groups: NavGroup[]) {
-  const order = v.operations ? ["home","sites","dispatch","team"] : v.ws === "factory" ? SLOTS_FACTORY : v.role !== "employee" ? SLOTS_STAFF : v.flow ? SLOTS_DEPT : SLOTS_CREW;
+  const order = v.ws === "factory" ? SLOTS_FACTORY : v.operations ? ["home","sites","dispatch","team"] : v.role !== "employee" ? SLOTS_STAFF : v.flow ? SLOTS_DEPT : SLOTS_CREW;
   return order.map((id) => groups.find((g) => g.id === id)).filter((g): g is NavGroup => !!g).slice(0, 4);
 }

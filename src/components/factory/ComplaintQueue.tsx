@@ -8,7 +8,8 @@ import Link from "next/link";
 import { CheckCircle } from "@phosphor-icons/react/dist/ssr";
 import { PriorityTag, UnlistedTag } from "@/components/dispatch/PriorityTag";
 import { RECENT_CLOSED_DAYS } from "@/server/queries/complaint-tracker";
-import { FACTORY_PHASES, factoryPhaseLabel, groupQueue, queueCounts, type PhaseFilter, type QueueComplaint, type QueueGroup } from "@/server/queries/factory-pipeline";
+import { chipPhases } from "@/domain/complaint-phases";
+import { factoryPhaseLabel, groupQueue, queueCounts, type PhaseFilter, type QueueComplaint, type QueueGroup } from "@/server/queries/factory-pipeline";
 import { days } from "./FactoryRows";
 
 const href = (show: "open" | "closed", phase: PhaseFilter) => `/complaints?${show === "closed" ? "show=closed" : `phase=${phase}`}`;
@@ -65,7 +66,7 @@ export function ComplaintQueue({ list, show, phase, hasRoles }: { list: QueueCom
         {show === "open" && (
           <div className="ct-chips" role="group" aria-label="Phase">
             <Link href={href("open", "all")} aria-current={phase === "all" ? "true" : undefined}>All <span className="ct-n">{n.open}</span></Link>
-            {FACTORY_PHASES.map((p) => (
+            {chipPhases(list.some((c) => c.operations), n.byPhase).map((c) => ({ code: c.code, label: factoryPhaseLabel(c.code) })).map((p) => (
               <Link key={p.code} href={href("open", p.code)} aria-current={phase === p.code ? "true" : undefined} data-zero={n.byPhase[p.code] === 0 || undefined}>
                 {p.label} <span className="ct-n" data-alert={n.overdueByPhase[p.code] > 0 || undefined}>{n.byPhase[p.code]}</span>
               </Link>

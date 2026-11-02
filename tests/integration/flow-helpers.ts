@@ -77,3 +77,6 @@ export function flowKit(getDb: () => Db) {
   }
   return { as, upload, state, cstate, step, cstep, toSite, lines, receive, placeAt };
 }
+
+/** Illustrative policy for tests of the revised process; not production values. */
+export const testPolicy = { tier1Max: '1000', tier2Max: '5000', planApprover: 'installation_head', regularizationApprover: 'installation_head', readinessReminderDays: 1, installation: { dailyMinutes: 480, hourlyRate: '100' }, complaint: { dailyMinutes: 240, hourlyRate: '150' } };

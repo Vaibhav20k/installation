@@ -57,7 +57,7 @@ export async function complaintTracker(q: Queryable, actor: Actor, now: number):
       project: r.project, dispatch_no: r.dispatch_no, raised_at: Number(r.created_at), raised_by_me: r.created_by === actor.id, status: r.status, outcome: r.outcome,
       closed_at: r.closed_at ? Number(r.closed_at) : null, stage: r.stage, stage_label: s?.label ?? r.stage, days_in_stage: open ? days : 0,
       overdue: open && !!s?.slaDays && days > s.slaDays,
-      track: {...phaseTrack({ stage: r.stage, status: r.status, itemSource: r.item_source, owner: s?.owner, terminal: s?.terminal, outcome: r.outcome }),...(defs.complaint.get(r.config_version)?.protocol?{steps:[],says:r.status==='closed'?'Closed; see recorded installation or follow-up outcome.':s?.label??r.stage,waitingFor:r.status==='closed'?null:s?.owner.replaceAll('_',' ')??null}:{})},
+      track: phaseTrack({ stage: r.stage, status: r.status, itemSource: r.item_source, owner: s?.owner, terminal: s?.terminal, outcome: r.outcome, operations: !!defs.complaint.get(r.config_version)?.protocol }),
       priority: r.priority === "high" || r.priority === "urgent" || r.priority === "normal" ? r.priority : null,
     };
   }));
@@ -72,7 +72,7 @@ export async function complaintTracker(q: Queryable, actor: Actor, now: number):
 /** Counts for the filter chips: open and closed, and open complaints per phase. */
 export function trackerCounts(list: TrackedComplaint[]) {
   const open = list.filter((c) => c.status === "open");
-  const byPhase: Record<PhaseCode, number> = { planning: 0, purchase: 0, qc: 0, production: 0, dispatched: 0 };
+  const byPhase: Record<PhaseCode, number> = { planning: 0, purchase: 0, qc: 0, production: 0, qa: 0, dispatched: 0 };
   for (const c of open) if (c.track.phase !== "done") byPhase[c.track.phase] += 1;
   return { open: open.length, closed: list.length - open.length, overdue: open.filter((c) => c.overdue).length, byPhase };
 }

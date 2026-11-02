@@ -27,7 +27,7 @@ describe("factory pipeline bucketing", () => {
     expect(dispatchTile("eway_bill")).toBe("accounts");
     expect(dispatchTile("dispatched")).toBe("load");
     expect(dispatchTile("received")).toBe("truck");
-    for (const s of ["installation_started", "installation_done", "completed", "ready_for_dispatch"]) expect(dispatchTile(s)).toBeNull();
+    for (const s of ["installation_started", "installation_done", "completed", "mnd_check"]) expect(dispatchTile(s)).toBeNull();
   });
 
   it("gives buttons only to the owning department, matching the shipped dispatch flow", () => {
