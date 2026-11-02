@@ -3,6 +3,7 @@ import { Archivo, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import "./globals.css";
+import "../styles/personal.css";
 import "../styles/features.css";
 import "../styles/cards.css";
 import "../styles/site-ops.css";
