@@ -1,0 +1,75 @@
+/* Temporary and isolated: remove this folder and its single layout mount to remove tutorials. */
+.launcher { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.launch { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 16px; background: var(--plate); color: var(--ink); border: 1px solid var(--rule-strong); }
+.launch > span { font-size: 22px; line-height: 1; }
+.dialog { padding: 0; width: min(960px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; border: 1px solid var(--rule-strong); border-radius: 20px; background: var(--plate); color: var(--ink); box-shadow: var(--shadow-lift); overflow: hidden; }
+.dialog[open] { display: flex; flex-direction: column; }
+.dialog::backdrop { background: rgb(0 0 0 / .58); }
+.header { display: flex; flex-shrink: 0; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 22px 24px 16px; border-bottom: 1px solid var(--rule); }
+.header h2 { font-size: clamp(20px, 3vw, 27px); margin: 4px 0 0; line-height: 1.2; }
+.eyebrow { color: var(--ink-3); font-size: 12px; margin: 0; }
+.close { flex-shrink: 0; padding: 0; width: 44px; height: 44px; font-size: 28px; }
+.safety { background: var(--plate-2); padding: 10px 24px; color: var(--ink-2); font-size: 12px; flex-shrink: 0; }
+.menu, .player { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px; }
+.menu > p { color: var(--ink-2); margin: 0 0 20px; max-width: 70ch; }
+.catalog { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; text-align: left; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; padding: 18px 4px; background: transparent; box-shadow: none; color: var(--ink); font-weight: 400; }
+.choice:hover { background: var(--plate-2); }
+.choice > span:nth-child(2) { flex: 1; min-width: 0; }
+.choice strong, .choice small, .choice > span > span { display: block; }
+.choice strong { font-size: 16px; line-height: 1.35; }
+.choice > span > span { font-size: 13px; line-height: 1.5; color: var(--ink-2); margin: 6px 0; }
+.choice small { font-size: 11px; color: var(--ink-3); }
+.number { font-family: var(--font-code); color: var(--ink-3); padding-top: 2px; font-size: 12px; }
+.position { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--ink-2); font-size: 13px; }
+.position button { border: 0; padding: 6px 0; min-height: 40px; background: transparent; box-shadow: none; }
+.track { display: flex; gap: 4px; margin: 10px 0 24px; }
+.track span { flex: 1; height: 4px; border-radius: 2px; background: var(--rule); }
+.track span[data-done="true"] { background: var(--ok); }
+.track span[data-current="true"] { background: var(--ink); }
+.scene { display: grid; grid-template-columns: .9fr 1.1fr; gap: 32px; align-items: start; }
+.role { display: inline-block; background: var(--plate-2); border: 1px solid var(--rule); padding: 5px 10px; border-radius: 6px; font-size: 12px; margin: 0 0 14px; }
+.explanation h3 { font-size: clamp(23px, 3vw, 30px); line-height: 1.15; margin: 0 0 16px; }
+.explanation > p:not(.role) { line-height: 1.6; color: var(--ink-2); font-size: 14px; }
+.where { margin-top: 24px; border-left: 3px solid var(--rule-strong); padding-left: 12px; }
+.where strong { display: block; color: var(--ink); font-size: 12px; }
+.preview { border: 1px solid var(--rule-strong); border-radius: 12px; overflow: hidden; background: var(--ground); }
+.previewHead { display: flex; justify-content: space-between; padding: 12px 16px; background: var(--plate); border-bottom: 1px solid var(--rule); font-size: 13px; }
+.previewHead span { color: var(--ink-3); font-size: 11px; }
+.preview dl { margin: 16px; background: var(--plate); border: 1px solid var(--rule); border-radius: 8px; padding: 0 12px; }
+.preview dl > div { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.preview dl > div:last-child { border-bottom: 0; }
+.preview dt { font-size: 11px; color: var(--ink-3); margin-bottom: 3px; }
+.preview dd { font-size: 14px; margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.demoAction { margin: 16px; background: var(--ink); color: var(--plate); border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 600; }
+.demoAction small { display: block; margin: 5px 0 0 20px; font-size: 11px; font-weight: 400; }
+.demoAction[data-done="true"] { background: var(--ok); color: var(--plate); }
+.result { padding: 0 16px 16px; font-size: 13px; line-height: 1.5; color: var(--ink-2); min-height: 104px; }
+.result strong { color: var(--ink); }
+.result p { margin: 5px 0 0; }
+.complete { background: var(--ok-soft); padding: 16px; border-radius: 10px; margin-top: 20px; }
+.complete p { margin: 6px 0 0; }
+.controls { padding: 16px 24px; border-top: 1px solid var(--rule); background: var(--plate); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.buttons { display: flex; gap: 8px; }
+.buttons button { min-height: 44px; font-size: 13px; padding: 8px 14px; }
+.playback { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--ink-2); }
+.playback label { display: flex; align-items: center; gap: 6px; }
+.playback select { width: auto; min-height: 36px; padding: 4px 8px; font-size: 12px; }
+.playback > span { min-width: 64px; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+@media (max-width: 640px) {
+ .dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 14px; }
+ .header { padding: 16px; gap: 8px; }
+ .safety { padding: 10px 16px; }
+ .menu, .player { padding: 16px; }
+ .catalog { grid-template-columns: 1fr; }
+ .scene { grid-template-columns: 1fr; gap: 16px; }
+ .explanation h3 { font-size: 24px; margin-bottom: 10px; }
+ .where { margin-top: 12px; }
+ .role { margin-bottom: 10px; }
+ .controls { padding: 12px; flex-direction: column; gap: 10px; }
+ .buttons { width: 100%; }
+ .buttons button { flex: 1; padding: 8px; }
+ .playback { width: 100%; justify-content: space-between; }
+ .track { margin-bottom: 16px; }
+}
