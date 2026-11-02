@@ -78,7 +78,7 @@ export async function canSeeCost(q: Queryable, actor: Actor, projectId: string |
 
 export async function canSeeFinanceFiles(q: Queryable, actor: Actor, projectId: string) {
   const roles = await actorRoles(q, actor.id);
-  if (actor.role === "admin" || roles.some((r) => r === "accounts" || r === "factory_dispatch" || r === "management")) return true;
+  if (actor.role === "admin" || roles.some((r) => ["accounts", "finance", "dispatch_department", "factory_dispatch", "management"].includes(r))) return true;
   return inProjectScope(q, actor, projectId);
 }
 
@@ -91,7 +91,7 @@ export async function requireStageFileView(q: Queryable, actor: Actor, historyId
   if (!h?.project_id) throw notFound("Record");
   await requireFlowView(q, actor, h.project_id);
   if (await isFinanceStage(q, h.subject_type, h.config_version, h.from_stage) && !(await canSeeFinanceFiles(q, actor, h.project_id))) {
-    throw forbidden("Tax invoices and e-way bills are for Accounts, Factory / Dispatch, Management and the project's managers.");
+    throw forbidden("Tax invoices and e-way bills are for Accounts, Finance, Dispatch, Management and the project's managers.");
   }
 }
 
