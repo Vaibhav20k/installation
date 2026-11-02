@@ -4,6 +4,7 @@
  * due reminder), never a per-second request. New alerts also show as a banner while the app is open and, if the
  * worker allowed it on this device, as a browser notification. Closed-app push is not configured (see docs).
  */
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellRinging, X } from "@phosphor-icons/react";
 import { markNotificationsRead } from "@/app/actions";
@@ -54,7 +55,14 @@ export function NotificationBell() {
     return () => clearTimeout(t);
   }, [data?.nextDueAt, data?.serverNow, load]);
 
-  const readAll = async () => { await markNotificationsRead({}); void load(); };
+  const [marking,setMarking]=useState(false);
+  const [readError,setReadError]=useState('');
+  const readAll = async () => {
+    if(marking)return;setMarking(true);setReadError('');
+    try {const r=await markNotificationsRead({});if(r.ok)await load();else setReadError(r.message);}
+    catch {setReadError('Could not mark notifications read. Try again.');}
+    finally {setMarking(false);}
+  };
   const unread = data?.unread ?? 0;
   return (
     <div className="bell">
@@ -64,12 +72,13 @@ export function NotificationBell() {
       </button>
       {open && (
         <div className="bell-panel" role="dialog" aria-label="Notifications" onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
-          <div className="bell-head"><strong>Notifications</strong>{unread > 0 && <button type="button" className="link small" onClick={readAll}>Mark all read</button>}</div>
+          <div className="bell-head"><strong>Notifications</strong>{unread > 0 && <button type="button" className="link small" onClick={readAll} disabled={marking}>{marking ? "Marking read…" : "Mark all read"}</button>}</div>
+          {readError && <p role="alert">{readError}</p>}
           {!data?.items.length ? <p className="small muted" style={{ margin: 0 }}>Nothing yet. Shift reminders and approvals appear here.</p> : (
             <ul>
               {data.items.map((i) => (
                 <li key={i.id} data-unread={!i.read_at || undefined}>
-                  <span className="bell-title">{i.href?.startsWith("/") && !i.href.startsWith("//") ? <a href={i.href}>{i.title}</a> : i.title}{i.overdue ? " · late" : ""}</span>
+                  <span className="bell-title">{i.href?.startsWith("/") && !i.href.startsWith("//") ? <Link href={i.href} onClick={()=>setOpen(false)}>{i.title}</Link> : i.title}{i.overdue ? " · late" : ""}</span>
                   <span className="small">{i.body}</span>
                   <span className="small muted code">{fmt.format(Number(i.effective_at))}</span>
                 </li>

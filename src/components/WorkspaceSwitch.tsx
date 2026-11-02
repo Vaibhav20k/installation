@@ -4,7 +4,8 @@
  * The choice is remembered in a cookie; people with one side see a plain label, not a button. A link that opens a
  * page living only on the other side switches over and says so (WorkspaceGuard).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { selectWorkspace } from "@/app/actions/workspace";
 import { usePathname, useRouter } from "next/navigation";
 import { Factory, HardHat } from "@phosphor-icons/react";
 import { WORKSPACE_COOKIE, WORKSPACE_LABEL, type Workspace } from "@/lib/workspace";
@@ -21,6 +22,7 @@ export function WorkspaceSwitch({ current, available, demo }: { current: Workspa
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(current);
+  const [pending,start] = useTransition();
   useEffect(() => setShown(current), [current]);
   useSlidingIndicator(ref, available.length > 1 ? shown : null);
   if (available.length < 2) {
@@ -28,11 +30,9 @@ export function WorkspaceSwitch({ current, available, demo }: { current: Workspa
     return <span className="ws-label"><I size={16} weight="fill" aria-hidden /> {WORKSPACE_LABEL[current]}</span>;
   }
   const pick = (w: Workspace) => {
-    if (w === shown) return;
+    if (w === shown || pending) return;
     setShown(w);
-    remember(w);
-    router.push("/");
-    router.refresh();
+    start(() => selectWorkspace(w));
   };
   const onKey = (e: React.KeyboardEvent) => {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
@@ -47,7 +47,7 @@ export function WorkspaceSwitch({ current, available, demo }: { current: Workspa
       {available.map((w) => {
         const I = ICON[w], on = w === shown;
         return (
-          <button key={w} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} data-key={w} onClick={() => pick(w)}>
+          <button key={w} type="button" role="radio" disabled={pending} aria-busy={pending} aria-checked={on} tabIndex={on ? 0 : -1} data-key={w} onClick={() => pick(w)}>
             <I size={17} weight={on ? "fill" : "regular"} aria-hidden /> {WORKSPACE_LABEL[w]}
           </button>
         );
@@ -74,7 +74,7 @@ export function WorkspaceGuard({ viewer, available }: { viewer: Viewer; availabl
   return (
     <p className="notice ws-moved" role="status">
       Switched to <strong>{WORKSPACE_LABEL[moved.to]}</strong> to show this page.{" "}
-      <button type="button" className="link" onClick={() => { remember(moved.from); setMoved(null); router.push("/"); router.refresh(); }}>Back to {WORKSPACE_LABEL[moved.from]}</button>
+      <button type="button" className="link" onClick={() => { const back=moved.from; setMoved(null); void selectWorkspace(back); }}>Back to {WORKSPACE_LABEL[moved.from]}</button>
     </p>
   );
 }

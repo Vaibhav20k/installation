@@ -3,13 +3,15 @@
  * The pages of the current menu group as tabs (for example Sites: Installations · Planning · Projects), shown
  * above every page of a group with more than one page the person can open. A pill slides to the active tab.
  */
+import { useNavigationCounts } from "./NavigationCounts";
 import Link from "next/link";
 import { useRef } from "react";
 import { usePathname } from "next/navigation";
 import { activeGroup, activeTab, visibleGroups, type Viewer } from "./nav-config";
 import { useSlidingIndicator } from "./useSlidingIndicator";
 
-export function SectionTabs({ viewer, counts }: { viewer: Viewer; counts: Record<string, number> }) {
+export function SectionTabs({ viewer, counts: initialCounts }: { viewer: Viewer; counts: Record<string, number> }) {
+  const counts = useNavigationCounts(initialCounts);
   const path = usePathname();
   const group = activeGroup(visibleGroups(viewer), path);
   const active = group ? activeTab(group, path)?.href ?? null : null;

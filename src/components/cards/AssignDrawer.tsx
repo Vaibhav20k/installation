@@ -69,7 +69,7 @@ export function AssignDrawer({ card, onClose }: { card: CardSummary; onClose: ()
       </div>
       {error && <div className="notice" data-tone="bad" role="alert">{error}</div>}
       {visitId && !ctx && !error && <p className="small muted" role="status">Checking the visit…</p>}
-      {ctx && <AssignForm key={ctx.visit.id} card={card} ctx={ctx} onDone={() => { void loadContext(visitId, true); router.refresh(); }} />}
+      {ctx && <AssignForm key={ctx.visit.id} card={card} ctx={ctx} onDone={() => { void loadContext(visitId, true); }} />}
     </Drawer>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useNavigationCounts } from "./NavigationCounts";
 import Link, { useLinkStatus } from "next/link";
 /**
  * Navigation in two forms from one list of 8 groups (nav-config.ts): a graphite rail on desktop with a sliding
@@ -14,7 +15,7 @@ import { SETTINGS_HREF, activeGroup, groupCount, groupHref, phoneSlots, visibleG
 import { useSlidingIndicator } from "./useSlidingIndicator";
 
 const ICONS: Record<string, Icon> = { home: SquaresFour, sites: Kanban, dispatch: Truck, work: HardHat, inbox: Tray, money: Wallet, people: UsersThree, reports: ChartBar,
-  fdispatch: Factory, complaints: WarningDiamond, setup: SlidersHorizontal };
+  siteplans: Kanban, team: UsersThree, fdispatch: Factory, complaints: WarningDiamond, setup: SlidersHorizontal };
 
 /** Instant feedback on the tapped tab while the next screen streams in. */
 function Pending() {
@@ -33,7 +34,8 @@ function useNav(viewer: Viewer) {
   return { path, groups, current: activeGroup(groups, path)?.id ?? null };
 }
 
-export function RailNav({ viewer, counts }: { viewer: Viewer; counts: Record<string, number> }) {
+export function RailNav({ viewer, counts: initialCounts }: { viewer: Viewer; counts: Record<string, number> }) {
+  const counts = useNavigationCounts(initialCounts);
   const { groups, current } = useNav(viewer);
   const ref = useRef<HTMLElement>(null);
   useSlidingIndicator(ref, current);
@@ -41,7 +43,7 @@ export function RailNav({ viewer, counts }: { viewer: Viewer; counts: Record<str
     <nav aria-label="Sections" ref={ref}>
       <span className="ind" aria-hidden />
       {groups.map((g) => {
-        const I = ICONS[g.id]!, on = g.id === current;
+        const I = (ICONS[g.id] ?? SquaresFour), on = g.id === current;
         return (
           <Link key={g.id} href={groupHref(g)} data-key={g.id} aria-current={on ? "page" : undefined}>
             <Pending /><I size={19} weight={on ? "fill" : "regular"} aria-hidden />
@@ -64,7 +66,8 @@ export function SettingsLink() {
   );
 }
 
-export function TabBar({ viewer, counts, identity }: { viewer: Viewer; counts: Record<string, number>; identity: React.ReactNode }) {
+export function TabBar({ viewer, counts: initialCounts, identity }: { viewer: Viewer; counts: Record<string, number>; identity: React.ReactNode }) {
+  const counts = useNavigationCounts(initialCounts);
   const { path, groups, current } = useNav(viewer);
   const [sheet, setSheet] = useState<"closed" | "open" | "closing">("closed");
   useEffect(() => setSheet("closed"), [path]);
@@ -83,7 +86,7 @@ export function TabBar({ viewer, counts, identity }: { viewer: Viewer; counts: R
     <>
       <nav aria-label="Primary" className="tabbar">
         {primary.map((g) => {
-          const I = ICONS[g.id]!, on = g.id === current;
+          const I = (ICONS[g.id] ?? SquaresFour), on = g.id === current;
           return (
             <Link key={g.id} href={groupHref(g)} aria-current={on ? "page" : undefined}>
               <Pending /><span className="tab-ico"><I size={23} weight={on ? "fill" : "regular"} aria-hidden /></span>
@@ -105,7 +108,7 @@ export function TabBar({ viewer, counts, identity }: { viewer: Viewer; counts: R
             <div className="grabber" aria-hidden />
             <nav aria-label="More sections">
               {rest.map((g, n) => {
-                const I = ICONS[g.id]!, on = g.id === current;
+                const I = (ICONS[g.id] ?? SquaresFour), on = g.id === current;
                 return (
                   <Link key={g.id} href={groupHref(g)} aria-current={on ? "page" : undefined} autoFocus={n === 0} style={{ "--i": n } as React.CSSProperties}>
                     <Pending /><I size={22} weight={on ? "fill" : "regular"} aria-hidden />

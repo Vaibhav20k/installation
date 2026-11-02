@@ -28,7 +28,7 @@ export function CardDrawer({ card, tab: initialTab, onClose }: { card: CardSumma
     if (r.ok) setData(r.data as Detail); else setError(r.message);
   }, [card.id]);
   useEffect(() => { void load(); }, [load]);
-  const changed = () => { void load(); router.refresh(); };
+  const changed = () => { void load(); };
 
   return (
     <Drawer title={card.name} onClose={onClose}>

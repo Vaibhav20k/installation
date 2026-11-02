@@ -2,6 +2,7 @@
  * Request session for server components and actions: database, acting user and service context.
  */
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "./db/client";
@@ -20,7 +21,7 @@ export async function database() {
   return db;
 }
 
-export async function session() {
+export const session = cache(async function session() {
   const db = await database();
   const jar = await cookies();
   try {
@@ -30,4 +31,4 @@ export async function session() {
     if (e instanceof AppError && e.kind === "unauthenticated") redirect("/sign-in");
     throw e;
   }
-}
+});

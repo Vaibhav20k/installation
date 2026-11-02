@@ -10,7 +10,7 @@ import { DEMO_COOKIE, resolveActor } from "@/server/auth/actor";
 import { AppError, toAppError, type Result } from "@/server/errors";
 import { makeCtx, type Ctx } from "@/server/services/context";
 
-export async function run<T>(op: (ctx: Ctx, input: unknown) => Promise<T>, input: unknown, revalidate: string[] = ["/"]): Promise<Result<T>> {
+export async function run<T>(op: (ctx: Ctx, input: unknown) => Promise<T>, input: unknown, revalidate: string[] = ["/"]): Promise<Result<T> & { revalidatedPaths?: string[] }> {
   let correlationId = "none";
   try {
     const db = await getDb();
@@ -18,8 +18,8 @@ export async function run<T>(op: (ctx: Ctx, input: unknown) => Promise<T>, input
     const ctx = makeCtx(db, actor);
     correlationId = ctx.correlationId;
     const data = await op(ctx, input);
-    for (const p of revalidate) revalidatePath(p, "layout");
-    return { ok: true, data: JSON.parse(JSON.stringify(data ?? null)) as T };
+    for (const p of revalidate) revalidatePath(p, "page");
+    return { ok: true, data: JSON.parse(JSON.stringify(data ?? null)) as T, revalidatedPaths: revalidate };
   } catch (e) {
     const err = e instanceof AppError ? e : toAppError(e);
     if (err.kind === "unexpected") console.error(`[${correlationId}] action failed`, e);
