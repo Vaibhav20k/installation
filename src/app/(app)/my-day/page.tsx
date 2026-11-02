@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CaretRight, Clock, MapPin, Package, Warning } from "@phosphor-icons/react/dist/ssr";
 import { session } from "@/server/session";
 import { myDay } from "@/server/queries/time";
@@ -43,22 +44,53 @@ export default async function MyDayPage({ searchParams }: { searchParams: Promis
   const drafts = d.entries.filter((e) => e.state === "draft").map((e) => e.id);
   const first = actor.name.split(" ")[0] ?? actor.name;
   const working = d.visit?.exec_status === "in_progress";
+  const next = staleOpen
+    ? { title: "Resolve your earlier site check-in", detail: "An earlier site session is still open. Open site check-in to see how to request a correction.", href: "#site-check", label: "Open site check-in" }
+    : !panel
+      ? { title: "Starting your working day?", detail: "Open attendance below to clock in when you start. Site check-in is separate: it records your location at a site.", href: "#attendance", label: "Open attendance" }
+      : !panel.open
+        ? { title: drafts.length ? "Review your time before submitting" : "Your attendance session is closed", detail: drafts.length ? "Check today's entries, then submit them for review. Opening this section does not submit anything." : "Review today's recorded time. If a time is incorrect, request a correction from My attendance.", href: "#time", label: "Review time entries" }
+        : !presence.open && presence.sites.length > 0
+          ? { title: "At your assigned site?", detail: "Use site check-in when you arrive. Your attendance is already running; checking in records where you are working.", href: "#site-check", label: "Open site check-in" }
+          : working
+            ? { title: "Keep your visit progress up to date", detail: "Open visit quantities to record completed work or report a blocker. Your supervisor accepts the quantities you record.", href: "#progress", label: "Open visit quantities" }
+            : { title: "Keep your activity up to date", detail: "Attendance is running. Use its controls to record working, travel, a break or idle time, and clock out when you finish.", href: "#attendance", label: "Open attendance controls" };
   return (
-    <div className="stack" style={{ gap: 16, maxWidth: 720, width: "100%", margin: "0 auto" }}>
+    <div className="stack day-guide daily-workspace" style={{ gap: 16, maxWidth: 820, width: "100%", margin: "0 auto" }}>
       <div>
         <h1>Today, {first}</h1>
-        <p className="muted small" style={{ margin: 0 }}>{d.today} · entries save to the server straight away; this screen needs a connection.</p>
+        <p className="muted small" style={{ margin: 0 }}>{shortDate(d.today)} · {actor.jobRole.replaceAll("_", " ")} · Your attendance, site work and time records.</p>
       </div>
 
+      <section className="plate next-action" aria-labelledby="h-day-next">
+        <span className="section-label">Your next step</span>
+        <h2 id="h-day-next">{next.title}</h2>
+        <p className="muted">{next.detail}</p>
+        <a className="button primary" href={next.href}>{next.label}<CaretRight size={16} aria-hidden /></a>
+      </section>
+      <nav className="day-jumps row" style={{ flexWrap: "wrap", gap: 8 }} aria-label="On this page">
+        <a className="button" href="#attendance">Attendance</a>
+        <a className="button" href="#site-check">Site check-in</a>
+        <a className="button" href="#work">Daily checklist</a>
+        {d.visit && <a className="button" href="#progress">Visit quantities</a>}
+        <a className="button" href="#time">Time entries</a>
+        {(mndSites.length > 0 || mndMine.length > 0) && <a className="button" href="#report-mnd">Missing or damaged</a>}
+        {d.visit && working && <a className="button" href="#receive-packages">Receive packages</a>}
+        {d.visit && working && <a className="button" href="#extra-work">Extra work</a>}
+      </nav>
+
       <AutoClosedNotice items={att.missed.filter((m) => m.shift.auto_closed).map((m) => ({ shiftId: m.shift.id, text: autoClosedMessage(m.shift.work_date) }))} />
+      <div id="attendance">
       <AttendancePanel shift={panel} serverNow={now} employeeFirstName={first} today={shortDate(d.today)}
         visitLabel={att.visit ? `${att.visit.business_id} · ${att.visit.project}` : d.visit ? `${d.visit.business_id} · ${d.visit.project}` : null} />
+      </div>
       {att.missed.some((m) => !m.shift.auto_closed) && (
         <p className="notice" data-tone="warn" role="status">You did not clock out on {att.missed.filter((m) => !m.shift.auto_closed).map((m) => shortDate(m.shift.work_date)).join(", ")}. That day stays provisional; open My attendance and request the correct clock-out time.</p>
       )}
 
-      <section className="plate" aria-labelledby="h-site-check">
+      <section className="plate" id="site-check" aria-labelledby="h-site-check">
         <div className="plate-head"><h2 id="h-site-check" style={{ margin: 0 }}>Site check-in</h2>{presence.open && !staleOpen ? <span className="code-tag">on site</span> : null}</div>
+        <p className="small muted">Records your arrival and departure at a site. Use attendance above to start or end your working day.</p>
         <SiteCheck sites={presence.sites} open={presence.open} stale={staleOpen} recent={presence.recent} />
       </section>
 
@@ -70,11 +102,12 @@ export default async function MyDayPage({ searchParams }: { searchParams: Promis
       )}
 
       <section className="plate" id="work" aria-labelledby="h-work-today">
-        <div className="plate-head"><h2 id="h-work-today" style={{ margin: 0 }}>{workDate === d.today ? "Today's work" : `Work for ${shortDate(workDate)}`}</h2><span className="code-tag">{work.today.filter((i) => i.done_at !== null).length} of {work.today.length} done</span></div>
+        <div className="plate-head"><h2 id="h-work-today" style={{ margin: 0 }}>{workDate === d.today ? "Daily checklist" : `Checklist for ${shortDate(workDate)}`}</h2><span className="code-tag">{work.today.filter((i) => i.done_at !== null).length} of {work.today.length} done</span></div>
+        <p className="small muted">Mark assigned checklist items done. Record installed quantities separately in Visit quantities.</p>
         <nav className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 10 }} aria-label="Choose a date">
-          <a className="button" href={`/my-day?workdate=${addDays(workDate, -1)}#work`}>Previous day</a>
-          {workDate !== d.today && <a className="button" href="/my-day#work">Today</a>}
-          <a className="button" href={`/my-day?workdate=${addDays(workDate, 1)}#work`}>Next day</a>
+          <Link className="button" href={`/my-day?workdate=${addDays(workDate, -1)}#work`}>Previous day</Link>
+          {workDate !== d.today && <Link className="button" href="/my-day#work">Today</Link>}
+          <Link className="button" href={`/my-day?workdate=${addDays(workDate, 1)}#work`}>Next day</Link>
         </nav>
         {work.overdue.length > 0 && (
           <>
@@ -106,7 +139,7 @@ export default async function MyDayPage({ searchParams }: { searchParams: Promis
           <h2 id="h-visit" className="plate-title">{d.visit.project}</h2>
           <p className="plate-sub" style={{ display: "flex", gap: 6, alignItems: "center" }}><MapPin size={16} aria-hidden /> {d.visit.site_address}</p>
           <ol className="callouts" style={{ marginTop: 10 }}>
-            <li><a href="#progress"><span className="callout-n">1</span><span><span className="callout-title">Record progress</span><span className="callout-meta">{working ? `${d.tasks.length} task${d.tasks.length === 1 ? "" : "s"} on today's plate` : "Opens once your supervisor starts the visit"}</span></span><Package size={20} className="callout-go" aria-hidden /></a></li>
+            <li><a href="#progress"><span className="callout-n">1</span><span><span className="callout-title">Open visit quantities</span><span className="callout-meta">{working ? `${d.tasks.length} task${d.tasks.length === 1 ? "" : "s"} · record completed quantities below` : "View scope; recording opens when your supervisor starts the visit"}</span></span><Package size={20} className="callout-go" aria-hidden /></a></li>
             <li><a href="#time"><span className="callout-n">2</span><span><span className="callout-title">Check today&apos;s time rows</span><span className="callout-meta">{d.entries.length ? `${d.entries.length} entr${d.entries.length === 1 ? "y" : "ies"} today` : "Made from your clock-out, or add one by hand"}</span></span><Clock size={20} className="callout-go" aria-hidden /></a></li>
             <li><a href={working ? "#blocker" : `/visits/${d.visit.id}?step=execution`}><span className="callout-n">3</span><span><span className="callout-title">{working ? "Report a blocker" : "Open the visit"}</span><span className="callout-meta">{working ? "Materials, site access, equipment" : "Status, team and readiness"}</span></span>{working ? <Warning size={20} className="callout-go" aria-hidden /> : <CaretRight size={20} className="callout-go" aria-hidden />}</a></li>
           </ol>
@@ -114,16 +147,15 @@ export default async function MyDayPage({ searchParams }: { searchParams: Promis
       )}
 
       {d.visit && (
-        <section className="plate" aria-labelledby="h-tasks">
-          <div className="plate-head"><h2 id="h-tasks" style={{ margin: 0 }}>Today&apos;s plate</h2><span className="code-tag">{d.tasks.length} tasks</span></div>
-          {d.tasks.length === 0 ? <p className="muted" style={{ margin: 0 }}>No open tasks on this visit.</p> : (
+        <section className="plate" id="progress" aria-labelledby="h-tasks">
+          <div className="plate-head"><h2 id="h-tasks" style={{ margin: 0 }}>Visit quantities</h2><span className="code-tag">{d.tasks.length} tasks</span></div>
+          {d.tasks.length === 0 && <p className="muted" style={{ margin: 0 }}>No open tasks on this visit.</p>}
             <DayProgress visitId={d.visit.id} tasks={d.tasks.map((t) => ({ ...t, scoped: qty(t.scoped), accepted: qty(t.accepted), pending: qty(t.pending), target: t.target ? qty(t.target) : null }))} canRecord={working} isEmployee={actor.role === "employee"} />
-          )}
         </section>
       )}
 
       {d.visit && working && (
-        <section className="plate" aria-labelledby="h-pk">
+        <section className="plate" id="receive-packages" aria-labelledby="h-pk">
           <div className="plate-head"><h2 id="h-pk" style={{ margin: 0 }}>Receive packages</h2></div>
           <ScanBox projectId={d.visit.project_id} />
           <details><summary className="small">Report a missing or damaged item</summary><PackageExceptionForm projectId={d.visit.project_id} packages={d.packages} /></details>
@@ -131,7 +163,7 @@ export default async function MyDayPage({ searchParams }: { searchParams: Promis
       )}
 
       {d.visit && working && (
-        <section className="plate" aria-labelledby="h-extra">
+        <section className="plate" id="extra-work" aria-labelledby="h-extra">
           <div className="plate-head"><h2 id="h-extra" style={{ margin: 0 }}>Extra work asked for on site?</h2></div>
           <details><summary className="small">Record a request for additional work</summary>
             <AdditionalWorkForm projectId={d.visit.project_id} visitId={d.visit.id} orders={d.orders.map((o) => ({ id: o.id, label: o.business_id }))} />
@@ -141,9 +173,10 @@ export default async function MyDayPage({ searchParams }: { searchParams: Promis
 
       <section className="plate" id="time" aria-labelledby="h-today">
         <div className="plate-head">
-          <h2 id="h-today" style={{ margin: 0 }}>Time today</h2>
-          {drafts.length > 0 ? <ActionButton action={submitTimeEntries} input={{ entryIds: drafts }} label={`Submit ${drafts.length}`} tone="primary" successText="Submitted for review." /> : <span className="code-tag">{d.entries.length} entries</span>}
+          <h2 id="h-today" style={{ margin: 0 }}>Time entries</h2>
+          {drafts.length > 0 ? <ActionButton action={submitTimeEntries} input={{ entryIds: drafts }} label={`Submit ${drafts.length} for review`} tone="primary" successText="Submitted for review." /> : <span className="code-tag">{d.entries.length} entries</span>}
         </div>
+        <p className="small muted">Check recorded time before submitting it to your reviewer. Saving a manual entry creates a draft; submitting sends it for review.</p>
         {d.entries.length > 0 && (
           <ul className="spec" style={{ marginBottom: 12 }}>
             {d.entries.map((e) => (
